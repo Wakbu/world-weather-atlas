@@ -1,0 +1,74 @@
+# World Weather Atlas
+
+전 세계 도시와 지도 좌표를 기준으로 현재 날씨, 48시간 예보, 주간 예보, 과거 날씨를 확인하는 반응형 웹 애플리케이션입니다.
+
+## Live Demo
+
+- https://wakbu.github.io/world-weather-atlas/
+
+## 주요 기능
+
+- 도시명 검색과 검색 후보 선택
+- 브라우저 현재 위치 조회
+- Leaflet 지도 클릭 및 핀 드래그를 통한 위치 선택
+- 현재 기온, 체감온도, 습도, 강수량, 풍속, 기압, 구름량 표시
+- 48시간 기온 변화와 강수확률 그래프
+- 향후 7일 최고·최저 기온 및 강수량 그래프
+- 최대 31일 범위의 과거 날씨 조회
+- 섭씨/화씨 전환
+- 라이트/다크 모드 및 설정 저장
+- 데스크톱, 태블릿, 모바일 반응형 레이아웃
+
+## 기술 스택
+
+- HTML5
+- CSS3
+- Vanilla JavaScript
+- Leaflet 1.9.4
+- OpenStreetMap
+- GitHub Pages / GitHub Actions
+
+## 사용 API
+
+| 용도 | API |
+| --- | --- |
+| 도시 검색 | Open-Meteo Geocoding API |
+| 현재 날씨 및 예보 | Open-Meteo Forecast API |
+| 과거 날씨 | Open-Meteo Historical Weather API |
+| 지도 타일 | OpenStreetMap |
+
+Open-Meteo는 이 프로젝트에서 API 키 없이 브라우저에서 직접 호출합니다.
+
+## 로컬 실행
+
+별도의 빌드 과정이나 패키지 설치가 필요하지 않습니다. `index.html`을 브라우저에서 열거나 정적 파일 서버를 사용합니다.
+
+```powershell
+npx serve .
+```
+
+지도와 날씨 API 호출을 위해 인터넷 연결이 필요합니다.
+
+## 프로젝트 구조
+
+```text
+.
+├── index.html
+├── styles.css
+├── script.js
+├── docs/
+│   └── PROGRAM_GUIDE.md
+└── .github/workflows/pages.yml
+```
+
+## 배포
+
+`main` 브랜치가 GitHub에 푸시되면 `.github/workflows/pages.yml`이 정적 파일을 GitHub Pages에 자동 배포합니다.
+
+## 참고
+
+- 과거 날씨는 한 번에 최대 31일까지 조회하도록 제한했습니다.
+- OpenStreetMap 지도 사용 시 화면에 표시되는 저작자 표시를 유지해야 합니다.
+- 날씨 데이터의 제공 시점과 정확도는 Open-Meteo 데이터셋에 따릅니다.
+
+자세한 구조와 동작 방식은 [프로그램 설명서](docs/PROGRAM_GUIDE.md)를 참고하세요.
