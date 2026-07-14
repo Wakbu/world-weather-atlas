@@ -1,0 +1,126 @@
+﻿<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>World Weather Atlas</title>
+    <script>try{document.documentElement.dataset.theme=localStorage.getItem("weather-theme")||((matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light")}catch(e){}</script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="masthead" aria-label="세계 날씨 검색">
+        <div>
+          <p class="eyebrow">Global weather detail</p>
+          <h1>World Weather Atlas</h1>
+          <p class="lead">원하는 위치를 선택하고 필요한 정보만 탭으로 나눠 확인합니다.</p>
+        </div>
+        <div class="search-surface">
+          <form id="searchForm" class="search" autocomplete="off">
+            <label class="sr-only" for="cityInput">도시명</label>
+            <input id="cityInput" name="city" type="search" value="Seoul" placeholder="Seoul, New York, Paris, Tokyo">
+            <button type="submit">검색</button>
+          </form>
+          <div class="quick-actions">
+            <button class="ghost-button" id="geoButton" type="button">현재 위치</button>
+            <button class="ghost-button" id="unitButton" type="button" aria-pressed="false">°F 보기</button>
+            <button class="ghost-button theme-button" id="themeButton" type="button" aria-label="다크 모드로 전환" title="다크 모드"><span id="themeIcon" aria-hidden="true">◐</span></button>
+          </div>
+        </div>
+      </section>
+
+      <nav class="tabbar" aria-label="날씨 화면 탭">
+        <button class="tab-button active" type="button" data-tab="overview">요약</button>
+        <button class="tab-button" type="button" data-tab="location">위치 선택</button>
+        <button class="tab-button" type="button" data-tab="hourly">48시간</button>
+        <button class="tab-button" type="button" data-tab="weekly">주간</button>
+        <button class="tab-button" type="button" data-tab="history">과거</button>
+      </nav>
+
+      <section class="location-bar" aria-live="polite">
+        <div><span id="placeName">Seoul</span><strong id="dateRange">데이터 준비 중</strong></div>
+        <dl class="location-meta">
+          <div><dt>위도</dt><dd id="latitude">--</dd></div><div><dt>경도</dt><dd id="longitude">--</dd></div>
+          <div><dt>시간대</dt><dd id="timezone">--</dd></div><div><dt>고도</dt><dd id="elevation">--</dd></div>
+        </dl>
+      </section>
+
+      <section class="tab-panel active" id="tab-overview">
+        <section class="hero-weather">
+          <div class="current-main">
+            <span id="weatherIcon" class="weather-icon" aria-hidden="true">--</span>
+            <div><p id="currentSummary" class="summary">현재 날씨를 불러오는 중입니다.</p><strong id="currentTemp" class="temperature">--</strong><span id="currentTime" class="current-time">--</span></div>
+          </div>
+          <dl class="metric-grid">
+            <div><dt>체감</dt><dd id="apparentTemp">--</dd></div><div><dt>습도</dt><dd id="humidity">--</dd></div><div><dt>강수</dt><dd id="precipitation">--</dd></div>
+            <div><dt>풍속</dt><dd id="windSpeed">--</dd></div><div><dt>기압</dt><dd id="pressure">--</dd></div><div><dt>구름</dt><dd id="cloudCover">--</dd></div>
+          </dl>
+        </section>
+        <article class="panel">
+          <div class="panel-header"><h2>해와 생활 지표</h2><span>오늘 기준</span></div>
+          <dl class="insight-list">
+            <div><dt>일출</dt><dd id="sunrise">--</dd></div><div><dt>일몰</dt><dd id="sunset">--</dd></div><div><dt>낮 길이</dt><dd id="daylight">--</dd></div>
+            <div><dt>최대 자외선</dt><dd id="uvIndex">--</dd></div><div><dt>가시거리</dt><dd id="visibility">--</dd></div><div><dt>주간 요약</dt><dd id="weeklySummary">--</dd></div>
+          </dl>
+        </article>
+      </section>
+
+      <section class="tab-panel" id="tab-location">
+        <section class="location-tools">
+          <article class="panel">
+            <div class="panel-header"><h2>검색 후보</h2><span id="resultStatus">도시를 검색하면 후보가 표시됩니다.</span></div>
+            <div id="resultList" class="result-list"></div>
+          </article>
+          <article class="panel location-picker">
+            <div class="panel-header"><h2>지도에서 선택</h2><span>지도를 클릭해 핀 이동</span></div>
+            <div id="weatherMap" class="weather-map" aria-label="날씨 위치 선택 지도"></div>
+            <div class="map-selection">
+              <div><span>선택한 위치</span><strong id="mapCoordinates">37.5665, 126.9780</strong></div>
+              <button id="mapApplyButton" type="button">이 위치 날씨 보기</button>
+            </div>
+            <p class="preset-title">주요 도시</p>
+            <div id="presetList" class="preset-list"></div>
+          </article>
+        </section>
+      </section>
+
+      <section class="tab-panel" id="tab-hourly">
+        <article class="panel"><div class="panel-header"><h2>48시간 흐름</h2><span>온도 변화 · 강수확률</span></div><div id="hourlyList" class="hourly-visual"></div></article>
+      </section>
+
+      <section class="tab-panel" id="tab-weekly">
+        <article class="panel weekly-panel"><div class="panel-header"><h2>앞으로 7일</h2><span>최고·최저 기온 / 강수량</span></div><div id="weeklyChart" class="weekly-chart" role="img" aria-label="7일 기온과 강수량 그래프"></div><div id="futureList" class="week-cards"></div></article>
+      </section>
+
+      <section class="tab-panel" id="tab-history">
+        <article class="panel history-panel">
+          <div class="panel-header"><h2>과거 날씨 조회</h2><span id="historyRangeStatus">기온 기록 · 실제 강수량</span></div>
+          <form id="historyRangeForm" class="date-range-form">
+            <label>시작일<input id="historyStart" type="date" required></label>
+            <span class="range-separator">→</span>
+            <label>종료일<input id="historyEnd" type="date" required></label>
+            <button type="submit">조회</button>
+            <div class="date-presets"><button type="button" data-history-days="7">최근 7일</button><button type="button" data-history-days="30">최근 30일</button></div>
+          </form>
+          <div id="historySummary" class="history-summary"></div>
+          <div id="historyChart" class="weekly-chart" role="img" aria-label="선택 기간 기온과 강수량 그래프"></div>
+          <div id="pastList" class="week-cards"></div>
+        </article>
+      </section>
+    </main>
+
+    <template id="resultTemplate"><button class="result-card" type="button"><span class="result-marker" aria-hidden="true"></span><span class="result-copy"><strong class="result-name"></strong><span class="result-detail"></span></span><span class="result-action">선택</span></button></template>
+    <template id="hourTemplate"><div class="hour-row"><div class="hour-time"><strong class="hour-label"></strong><span class="hour-desc"></span></div><div class="hour-metrics"><span class="hour-temp"></span><span class="hour-rain"></span><span class="hour-wind"></span><span class="hour-uv"></span></div></div></template>
+    <template id="dayTemplate"><div class="day-row"><div class="day-label"><strong class="day-date"></strong><span class="day-desc"></span></div><div class="day-values"><span class="temp-range"></span><span class="rain"></span><span class="sun"></span></div></div></template>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <script src="script.js"></script>
+  </body>
+</html>
+
+
+
+
+
+
+
