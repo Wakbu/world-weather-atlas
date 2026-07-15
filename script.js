@@ -754,6 +754,39 @@ function atmosphereTimeLabel(value) {
   return new Intl.DateTimeFormat(state.language === "en" ? "en-US" : "ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(value)) + tr(" 기준", " model");
 }
 
+function renderAtmosphereHeatField(points, data, layer) {
+  const size = atmosphereMap.getSize();
+  const spacing = Math.max(size.x / 8, size.y / 6);
+  const radius = Math.max(34, Math.round(spacing * .78));
+  const blur = Math.max(24, Math.round(radius * .72));
+  const cloudLayer = layer === "cloud";
+  const values = data.map((item) => Number(cloudLayer ? item?.current?.cloud_cover : item?.current?.pm2_5) || 0);
+  const heatPoints = points.map((point, index) => {
+    const intensity = cloudLayer ? .04 + Math.min(100, values[index]) / 105 : .16 + Math.min(150, values[index]) / 180;
+    return [point.latitude, point.longitude, Math.min(1, intensity)];
+  });
+  const gradient = cloudLayer
+    ? { .08: "#edf7f6", .32: "#bed4d5", .58: "#829ba1", .8: "#536970", 1: "#283b43" }
+    : state.colorSafe
+      ? { .12: "#0072b2", .35: "#56b4e9", .55: "#f0e442", .75: "#e69f00", 1: "#d55e00" }
+      : { .12: "#2ca58d", .35: "#8ecf72", .55: "#f0c74b", .75: "#e67e35", 1: "#9f3d68" };
+
+  if (typeof L.heatLayer === "function") {
+    L.heatLayer(heatPoints, { radius, blur, max: 1, minOpacity: cloudLayer ? .2 : .34, gradient }).addTo(atmosphereDataLayer);
+  } else {
+    points.forEach((point, index) => {
+      const color = cloudLayer ? cloudColor(values[index]) : pm25Color(values[index]);
+      L.circleMarker([point.latitude, point.longitude], { radius: Math.max(22, radius * .55), stroke: false, fillColor: color, fillOpacity: .48 }).addTo(atmosphereDataLayer);
+    });
+  }
+
+  points.forEach((point, index) => {
+    const label = cloudLayer ? tr("구름량 ", "Cloud ") + Math.round(values[index]) + "%" : "PM2.5 " + values[index].toFixed(1) + " μg/m³";
+    L.circleMarker([point.latitude, point.longitude], { radius: 18, stroke: false, fillOpacity: 0, opacity: 0, interactive: true })
+      .bindTooltip(label)
+      .addTo(atmosphereDataLayer);
+  });
+}
 async function renderAtmosphereLayer(layer = state.weatherLayer) {
   initAtmosphereMap();
   if (!atmosphereMap || !atmosphereDataLayer) return;
@@ -779,28 +812,18 @@ async function renderAtmosphereLayer(layer = state.weatherLayer) {
     const points = atmosphereGridPoints();
     const data = layer === "pm25" ? await fetchAtmosphereAir(points) : await fetchAtmosphereWeather(points);
     if (loadId !== atmosphereLoadId) return;
-    data.forEach((item, index) => {
-      const point = points[index];
-      if (!point || !item?.current) return;
-      if (layer === "cloud") {
-        const cloud = Number(item.current.cloud_cover || 0);
-        const color = cloudColor(cloud);
-        L.rectangle(point.cellBounds, { className: "weather-field-cell", color, weight: 0, fillColor: color, fillOpacity: .42 + cloud * .0045 })
-          .bindTooltip(tr("구름량 ", "Cloud ") + Math.round(cloud) + "%")
-          .addTo(atmosphereDataLayer);
-      } else if (layer === "wind") {
+    if (layer === "cloud" || layer === "pm25") {
+      renderAtmosphereHeatField(points, data, layer);
+    } else {
+      data.forEach((item, index) => {
+        const point = points[index];
+        if (!point || !item?.current) return;
         const speed = Number(item.current.wind_speed_10m || 0);
         const direction = (Number(item.current.wind_direction_10m || 0) + 180) % 360;
         const icon = L.divIcon({ className: "wind-marker", iconSize: [58, 56], iconAnchor: [29, 28], html: '<div class="wind-glyph" style="--wind-direction:' + direction + 'deg;--wind-color:' + windColor(speed) + '"><b aria-hidden="true">&#10148;</b><small>' + displayWind(speed) + '</small></div>' });
         L.marker([point.latitude, point.longitude], { icon }).bindTooltip(tr("풍속 ", "Wind ") + displayWind(speed)).addTo(atmosphereDataLayer);
-      } else {
-        const pm25 = Number(item.current.pm2_5 || 0);
-        const color = pm25Color(pm25);
-        L.rectangle(point.cellBounds, { className: "weather-field-cell", color, weight: 0, fillColor: color, fillOpacity: .72 })
-          .bindTooltip("PM2.5 " + pm25.toFixed(1) + " μg/m³")
-          .addTo(atmosphereDataLayer);
-      }
-    });
+      });
+    }
     elements.atmosphereStatus.textContent = atmosphereTimeLabel(data[0]?.current?.time);
   } catch (error) {
     elements.atmosphereStatus.textContent = tr("레이어 데이터를 불러오지 못했습니다. 다시 시도해 주세요.", "Layer data is unavailable. Please retry.");
@@ -1578,7 +1601,7 @@ function initializeConnectionState() {
 }
 
 function registerPwa() {
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("service-worker.js?v=20260715-17").catch(() => {});
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("service-worker.js?v=20260715-18").catch(() => {});
   let installPrompt;
   addEventListener("beforeinstallprompt", (event) => { event.preventDefault(); installPrompt = event; elements.installButton.hidden = false; });
   elements.installButton.addEventListener("click", async () => {
