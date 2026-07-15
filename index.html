@@ -4,11 +4,11 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#087f8c">
-    <link rel="manifest" href="manifest.webmanifest?v=20260715-18">
+    <link rel="manifest" href="manifest.webmanifest?v=20260715-19">
     <title>World Weather Atlas</title>
     <script>try{document.documentElement.dataset.theme=localStorage.getItem("weather-theme")||((matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light")}catch(e){}</script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
-    <link rel="stylesheet" href="styles.css?v=20260715-18">
+    <link rel="stylesheet" href="styles.css?v=20260715-19">
   </head>
   <body>
     <div id="offlineBanner" class="offline-banner" hidden>오프라인 상태입니다. 마지막으로 저장한 날씨를 표시합니다.</div>
@@ -195,7 +195,7 @@
     <template id="hourTemplate"><div class="hour-row"><div class="hour-time"><strong class="hour-label"></strong><span class="hour-desc"></span></div><div class="hour-metrics"><span class="hour-temp"></span><span class="hour-rain"></span><span class="hour-wind"></span><span class="hour-uv"></span></div></div></template>
     <template id="dayTemplate"><div class="day-row"><div class="day-label"><strong class="day-date"></strong><span class="day-desc"></span></div><div class="day-values"><span class="temp-range"></span><span class="rain"></span><span class="sun"></span></div></div></template>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
-    <script src="script.js?v=20260715-18"></script>
+
+    <script src="script.js?v=20260715-19"></script>
   </body>
 </html>

@@ -664,6 +664,7 @@ function atmosphereGridPoints() {
       points.push({
         latitude,
         longitude,
+        displayLongitude: cellWest + longitudeStep * .5,
         cellBounds: [[south + latitudeStep * row, cellWest], [south + latitudeStep * (row + 1), cellEast]],
       });
     }
@@ -754,35 +755,69 @@ function atmosphereTimeLabel(value) {
   return new Intl.DateTimeFormat(state.language === "en" ? "en-US" : "ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(value)) + tr(" 기준", " model");
 }
 
-function renderAtmosphereHeatField(points, data, layer) {
-  const size = atmosphereMap.getSize();
-  const spacing = Math.max(size.x / 8, size.y / 6);
-  const radius = Math.max(34, Math.round(spacing * .78));
-  const blur = Math.max(24, Math.round(radius * .72));
+function hexToRgb(hex) {
+  const value = Number.parseInt(hex.slice(1), 16);
+  return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
+}
+
+function interpolateFieldColor(value, stops) {
+  const foundIndex = stops.findIndex(([limit]) => value <= limit);
+  const upperIndex = foundIndex < 0 ? stops.length - 1 : Math.max(1, foundIndex);
+  const lower = stops[upperIndex - 1];
+  const upper = stops[upperIndex] || stops.at(-1);
+  const ratio = Math.max(0, Math.min(1, (value - lower[0]) / Math.max(.001, upper[0] - lower[0])));
+  const from = hexToRgb(lower[1]);
+  const to = hexToRgb(upper[1]);
+  return from.map((channel, index) => Math.round(channel + (to[index] - channel) * ratio));
+}
+
+function renderAtmosphereRasterField(points, data, layer) {
+  const rows = 6;
+  const columns = 8;
   const cloudLayer = layer === "cloud";
   const values = data.map((item) => Number(cloudLayer ? item?.current?.cloud_cover : item?.current?.pm2_5) || 0);
-  const heatPoints = points.map((point, index) => {
-    const intensity = cloudLayer ? .04 + Math.min(100, values[index]) / 105 : .16 + Math.min(150, values[index]) / 180;
-    return [point.latitude, point.longitude, Math.min(1, intensity)];
-  });
-  const gradient = cloudLayer
-    ? { .08: "#edf7f6", .32: "#bed4d5", .58: "#829ba1", .8: "#536970", 1: "#283b43" }
+  const mapSize = atmosphereMap.getSize();
+  const width = Math.min(720, Math.max(360, Math.round(mapSize.x * .7)));
+  const height = Math.min(460, Math.max(240, Math.round(mapSize.y * .7)));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  const image = context.createImageData(width, height);
+  const stops = cloudLayer
+    ? [[0, "#edf7f6"], [30, "#bed4d5"], [55, "#829ba1"], [80, "#536970"], [100, "#283b43"]]
     : state.colorSafe
-      ? { .12: "#0072b2", .35: "#56b4e9", .55: "#f0e442", .75: "#e69f00", 1: "#d55e00" }
-      : { .12: "#2ca58d", .35: "#8ecf72", .55: "#f0c74b", .75: "#e67e35", 1: "#9f3d68" };
+      ? [[0, "#0072b2"], [15, "#56b4e9"], [35, "#f0e442"], [55, "#e69f00"], [125, "#d55e00"], [150, "#9b3b00"]]
+      : [[0, "#2ca58d"], [15, "#62b878"], [35, "#f0c74b"], [55, "#e67e35"], [125, "#c94747"], [150, "#754a99"]];
 
-  if (typeof L.heatLayer === "function") {
-    L.heatLayer(heatPoints, { radius, blur, max: 1, minOpacity: cloudLayer ? .2 : .34, gradient }).addTo(atmosphereDataLayer);
-  } else {
-    points.forEach((point, index) => {
-      const color = cloudLayer ? cloudColor(values[index]) : pm25Color(values[index]);
-      L.circleMarker([point.latitude, point.longitude], { radius: Math.max(22, radius * .55), stroke: false, fillColor: color, fillOpacity: .48 }).addTo(atmosphereDataLayer);
-    });
+  for (let y = 0; y < height; y += 1) {
+    const gridY = Math.max(0, Math.min(rows - 1, (1 - y / Math.max(1, height - 1)) * rows - .5));
+    const y0 = Math.floor(gridY);
+    const y1 = Math.min(rows - 1, y0 + 1);
+    const ty = gridY - y0;
+    for (let x = 0; x < width; x += 1) {
+      const gridX = Math.max(0, Math.min(columns - 1, x / Math.max(1, width - 1) * columns - .5));
+      const x0 = Math.floor(gridX);
+      const x1 = Math.min(columns - 1, x0 + 1);
+      const tx = gridX - x0;
+      const south = values[y0 * columns + x0] * (1 - tx) + values[y0 * columns + x1] * tx;
+      const north = values[y1 * columns + x0] * (1 - tx) + values[y1 * columns + x1] * tx;
+      const value = south * (1 - ty) + north * ty;
+      const [red, green, blue] = interpolateFieldColor(value, stops);
+      const offset = (y * width + x) * 4;
+      image.data[offset] = red;
+      image.data[offset + 1] = green;
+      image.data[offset + 2] = blue;
+      image.data[offset + 3] = 255;
+    }
   }
+  context.putImageData(image, 0, 0);
 
+  const bounds = L.latLngBounds(points[0].cellBounds[0], points.at(-1).cellBounds[1]);
+  L.imageOverlay(canvas.toDataURL("image/png"), bounds, { opacity: cloudLayer ? .58 : .64, interactive: false, className: "atmosphere-raster-layer" }).addTo(atmosphereDataLayer);
   points.forEach((point, index) => {
     const label = cloudLayer ? tr("구름량 ", "Cloud ") + Math.round(values[index]) + "%" : "PM2.5 " + values[index].toFixed(1) + " μg/m³";
-    L.circleMarker([point.latitude, point.longitude], { radius: 18, stroke: false, fillOpacity: 0, opacity: 0, interactive: true })
+    L.circleMarker([point.latitude, point.displayLongitude], { radius: 18, stroke: false, fillOpacity: 0, opacity: 0, interactive: true })
       .bindTooltip(label)
       .addTo(atmosphereDataLayer);
   });
@@ -813,7 +848,7 @@ async function renderAtmosphereLayer(layer = state.weatherLayer) {
     const data = layer === "pm25" ? await fetchAtmosphereAir(points) : await fetchAtmosphereWeather(points);
     if (loadId !== atmosphereLoadId) return;
     if (layer === "cloud" || layer === "pm25") {
-      renderAtmosphereHeatField(points, data, layer);
+      renderAtmosphereRasterField(points, data, layer);
     } else {
       data.forEach((item, index) => {
         const point = points[index];
@@ -821,7 +856,7 @@ async function renderAtmosphereLayer(layer = state.weatherLayer) {
         const speed = Number(item.current.wind_speed_10m || 0);
         const direction = (Number(item.current.wind_direction_10m || 0) + 180) % 360;
         const icon = L.divIcon({ className: "wind-marker", iconSize: [58, 56], iconAnchor: [29, 28], html: '<div class="wind-glyph" style="--wind-direction:' + direction + 'deg;--wind-color:' + windColor(speed) + '"><b aria-hidden="true">&#10148;</b><small>' + displayWind(speed) + '</small></div>' });
-        L.marker([point.latitude, point.longitude], { icon }).bindTooltip(tr("풍속 ", "Wind ") + displayWind(speed)).addTo(atmosphereDataLayer);
+        L.marker([point.latitude, point.displayLongitude], { icon }).bindTooltip(tr("풍속 ", "Wind ") + displayWind(speed)).addTo(atmosphereDataLayer);
       });
     }
     elements.atmosphereStatus.textContent = atmosphereTimeLabel(data[0]?.current?.time);
@@ -1601,7 +1636,7 @@ function initializeConnectionState() {
 }
 
 function registerPwa() {
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("service-worker.js?v=20260715-18").catch(() => {});
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("service-worker.js?v=20260715-19").catch(() => {});
   let installPrompt;
   addEventListener("beforeinstallprompt", (event) => { event.preventDefault(); installPrompt = event; elements.installButton.hidden = false; });
   elements.installButton.addEventListener("click", async () => {

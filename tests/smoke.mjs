@@ -16,8 +16,9 @@ for (const fn of ["renderHazards", "renderPrecipTimeline", "renderActivities", "
 
 assert.match(css, /@media \(max-width: 620px\)/, "mobile breakpoint missing");
 assert.match(css, /prefers-reduced-motion/, "reduced-motion support missing");
-assert.match(html, /leaflet\.heat@0\.2\.0/, "Leaflet.heat dependency missing");
-assert.match(script, /L\.heatLayer/, "continuous heatmap renderer missing");
+assert.match(script, /L\.imageOverlay/, "continuous raster renderer missing");
+assert.doesNotMatch(script, /L\.rectangle/, "block grid renderer must not return");
+assert.doesNotMatch(html, /leaflet\.heat/, "radial heatmap dependency must not return");
 
 const htmlVersion = html.match(/script\.js\?v=([\w-]+)/)?.[1];
 assert.ok(htmlVersion, "script cache version missing");
