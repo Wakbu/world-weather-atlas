@@ -6,7 +6,7 @@
     <title>World Weather Atlas</title>
     <script>try{document.documentElement.dataset.theme=localStorage.getItem("weather-theme")||((matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light")}catch(e){}</script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=20260715-2">
   </head>
   <body>
     <main class="app-shell">
@@ -60,7 +60,7 @@
         </section>
         <section class="advice-panel" aria-live="polite">
           <div id="adviceVisual" class="advice-visual" data-kind="sun" role="img" aria-label="날씨 생활 조언 이미지"></div>
-          <div class="advice-copy"><p class="advice-label">오늘의 준비</p><h2 id="adviceTitle">날씨를 확인하고 있어요</h2><p id="adviceText">현재 조건에 맞는 준비물을 곧 알려드릴게요.</p><div id="adviceMeta" class="advice-meta"></div></div>
+          <div class="advice-copy"><p class="advice-label">오늘의 준비</p><h2 id="adviceTitle">날씨 정보를 준비하고 있어요</h2><p id="adviceText">연결되는 동안 우산과 자외선 차단제를 가볍게 챙겨두세요.</p><div id="adviceMeta" class="advice-meta"><span>자동 갱신</span><span>전세계 날씨</span></div></div>
         </section>
         <section id="rainRadarSection" class="panel rain-radar-panel" hidden>
           <div class="panel-header"><h2>현재 비구름</h2><span id="radarTime">레이더 불러오는 중</span></div>
@@ -124,6 +124,6 @@
     <template id="hourTemplate"><div class="hour-row"><div class="hour-time"><strong class="hour-label"></strong><span class="hour-desc"></span></div><div class="hour-metrics"><span class="hour-temp"></span><span class="hour-rain"></span><span class="hour-wind"></span><span class="hour-uv"></span></div></div></template>
     <template id="dayTemplate"><div class="day-row"><div class="day-label"><strong class="day-date"></strong><span class="day-desc"></span></div><div class="day-values"><span class="temp-range"></span><span class="rain"></span><span class="sun"></span></div></div></template>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-    <script src="script.js"></script>
+    <script src="script.js?v=20260715-2"></script>
   </body>
 </html>

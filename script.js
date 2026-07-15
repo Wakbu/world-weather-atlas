@@ -298,6 +298,18 @@ function renderAdvice(forecast) {
   });
 }
 
+function renderAdviceFallback() {
+  elements.adviceVisual.dataset.kind = "sun";
+  elements.adviceTitle.textContent = "날씨 정보를 잠시 불러오지 못했어요";
+  elements.adviceText.textContent = "연결 상태를 확인한 뒤 새로고침을 눌러주세요. 화면은 10분마다 자동으로 다시 확인합니다.";
+  elements.adviceMeta.replaceChildren();
+  ["데이터 연결 대기", "자동 재시도"].forEach((text) => {
+    const chip = document.createElement("span");
+    chip.textContent = text;
+    elements.adviceMeta.append(chip);
+  });
+}
+
 async function getRadarMetadata() {
   if (state.radarMetadata && Date.now() - state.radarMetadata.fetchedAt < 300000) return state.radarMetadata.data;
   const data = await fetchJson(API.radar);
@@ -615,17 +627,22 @@ function renderError(message) {
   elements.hourlyList.replaceChildren();
   elements.pastList.replaceChildren();
   elements.futureList.replaceChildren();
+  elements.rainRadarSection.hidden = true;
+  elements.refreshStatus.textContent = "연결 대기 · 10분마다 자동 재시도";
+  renderAdviceFallback();
 }
 
 async function loadPlace(place) {
   if (state.loading) return;
+  state.selectedPlace = place;
+  state.weather = null;
+  startAutoRefresh();
   setLoading(true);
   elements.currentSummary.textContent = "상세 날씨 데이터를 불러오는 중입니다.";
   try {
     const weather = await fetchWeather(place);
     state.lastRefreshAt = Date.now();
     renderPlace(place, weather);
-    startAutoRefresh();
   } catch (error) {
     renderError(error.message || "날씨 데이터를 불러오지 못했습니다.");
   } finally {
@@ -667,19 +684,21 @@ function startAutoRefresh() {
 }
 
 async function refreshSelectedWeather(manual = false) {
-  if (!state.selectedPlace || !state.weather || state.loading) return;
+  if (!state.selectedPlace || state.loading) return;
   const place = state.selectedPlace;
   setLoading(true);
   elements.refreshButton.classList.add("refreshing");
   elements.refreshStatus.textContent = manual ? "새 날씨를 불러오는 중" : "자동 갱신 중";
   try {
-    const forecast = await fetchLatestForecast(place);
+    const weather = state.weather
+      ? { forecast: await fetchLatestForecast(place), archive: state.weather.archive }
+      : await fetchWeather(place);
     if (state.selectedPlace?.id !== place.id) return;
-    state.weather = { forecast, archive: state.weather.archive };
     state.lastRefreshAt = Date.now();
-    renderPlace(place, state.weather);
+    renderPlace(place, weather);
   } catch (error) {
     elements.refreshStatus.textContent = "갱신 실패 · 잠시 후 다시 시도";
+    if (!state.weather) renderAdviceFallback();
   } finally {
     elements.refreshButton.classList.remove("refreshing");
     setLoading(false);

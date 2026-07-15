@@ -528,7 +528,11 @@ html[data-theme="dark"] .leaflet-control-attribution a { color: #80d4c5; }
 .refresh-status { display: block; margin: 7px 0 0 16px; color: var(--accent-strong); font-size: 0.74rem; font-weight: 800; }
 
 .advice-panel { display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: 220px; margin-bottom: 18px; overflow: hidden; border: 1px solid #e2c875; border-radius: 8px; background: #fff4c9; box-shadow: 0 14px 32px rgba(87, 68, 20, 0.12); }
-.advice-visual { min-height: 220px; background-color: #e8dcae; background-image: url("assets/weather-advice-sprite.png"); background-repeat: no-repeat; background-size: 200% 200%; }
+.advice-visual { position: relative; min-height: 220px; background-color: #e8dcae; background-image: url("assets/weather-advice-sprite.png?v=20260715-2"); background-repeat: no-repeat; background-size: 200% 200%; }
+.advice-visual::after { position: absolute; right: 12px; bottom: 12px; display: grid; width: 38px; height: 38px; place-items: center; border: 1px solid rgba(255, 255, 255, 0.65); border-radius: 50%; background: rgba(22, 36, 31, 0.72); color: #fff; content: "☀"; font-size: 1.2rem; box-shadow: 0 6px 16px rgba(18, 36, 30, 0.22); }
+.advice-visual[data-kind="rain"]::after { content: "☂"; }
+.advice-visual[data-kind="cold"]::after { content: "❄"; }
+.advice-visual[data-kind="heat"]::after { content: "♨"; }
 .advice-visual[data-kind="rain"] { background-position: 0 0; }
 .advice-visual[data-kind="sun"] { background-position: 100% 0; }
 .advice-visual[data-kind="cold"] { background-position: 0 100%; }
