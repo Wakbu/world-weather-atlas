@@ -1336,7 +1336,7 @@ function initializeConnectionState() {
 }
 
 function registerPwa() {
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("service-worker.js?v=20260715-12").catch(() => {});
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("service-worker.js?v=20260715-13").catch(() => {});
   let installPrompt;
   addEventListener("beforeinstallprompt", (event) => { event.preventDefault(); installPrompt = event; elements.installButton.hidden = false; });
   elements.installButton.addEventListener("click", async () => {
@@ -1351,7 +1351,7 @@ function registerPwa() {
 function resetApplication() {
   if (elements.resetButton.dataset.armed !== "true") {
     elements.resetButton.dataset.armed = "true";
-    elements.resetButton.textContent = tr("한 번 더 눌러 초기화", "Press again to reset");
+    elements.resetButton.textContent = tr("초기화 확인", "Confirm");
     showToast(tr("즐겨찾기, 최근 위치, 단위 설정을 지우려면 초기화 버튼을 한 번 더 누르세요.", "Press Reset again to clear favorites, recent places and display settings."));
     clearTimeout(resetApplication.timer);
     resetApplication.timer = setTimeout(() => {
