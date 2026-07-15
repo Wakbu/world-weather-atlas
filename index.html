@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="ko">
   <head>
     <meta charset="utf-8">
@@ -25,6 +25,7 @@
           <div class="quick-actions">
             <button class="ghost-button" id="geoButton" type="button">현재 위치</button>
             <button class="ghost-button" id="unitButton" type="button" aria-pressed="false">°F 보기</button>
+            <button class="ghost-button icon-button" id="refreshButton" type="button" aria-label="날씨 새로고침" title="날씨 새로고침"><span aria-hidden="true">↻</span></button>
             <button class="ghost-button theme-button" id="themeButton" type="button" aria-label="다크 모드로 전환" title="다크 모드"><span id="themeIcon" aria-hidden="true">◐</span></button>
           </div>
         </div>
@@ -39,7 +40,7 @@
       </nav>
 
       <section class="location-bar" aria-live="polite">
-        <div><span id="placeName">Seoul</span><strong id="dateRange">데이터 준비 중</strong></div>
+        <div><span id="placeName">Seoul</span><strong id="dateRange">데이터 준비 중</strong><small id="refreshStatus" class="refresh-status">10분마다 자동 갱신</small></div>
         <dl class="location-meta">
           <div><dt>위도</dt><dd id="latitude">--</dd></div><div><dt>경도</dt><dd id="longitude">--</dd></div>
           <div><dt>시간대</dt><dd id="timezone">--</dd></div><div><dt>고도</dt><dd id="elevation">--</dd></div>
@@ -56,6 +57,15 @@
             <div><dt>체감</dt><dd id="apparentTemp">--</dd></div><div><dt>습도</dt><dd id="humidity">--</dd></div><div><dt>강수</dt><dd id="precipitation">--</dd></div>
             <div><dt>풍속</dt><dd id="windSpeed">--</dd></div><div><dt>기압</dt><dd id="pressure">--</dd></div><div><dt>구름</dt><dd id="cloudCover">--</dd></div>
           </dl>
+        </section>
+        <section class="advice-panel" aria-live="polite">
+          <div id="adviceVisual" class="advice-visual" data-kind="sun" role="img" aria-label="날씨 생활 조언 이미지"></div>
+          <div class="advice-copy"><p class="advice-label">오늘의 준비</p><h2 id="adviceTitle">날씨를 확인하고 있어요</h2><p id="adviceText">현재 조건에 맞는 준비물을 곧 알려드릴게요.</p><div id="adviceMeta" class="advice-meta"></div></div>
+        </section>
+        <section id="rainRadarSection" class="panel rain-radar-panel" hidden>
+          <div class="panel-header"><h2>현재 비구름</h2><span id="radarTime">레이더 불러오는 중</span></div>
+          <div id="rainRadarMap" class="rain-radar-map" aria-label="현재 비구름 레이더 지도"></div>
+          <p class="radar-credit">레이더: <a href="https://www.rainviewer.com/" target="_blank" rel="noreferrer">RainViewer</a> · 지도: OpenStreetMap</p>
         </section>
         <article class="panel">
           <div class="panel-header"><h2>해와 생활 지표</h2><span>오늘 기준</span></div>
@@ -117,10 +127,3 @@
     <script src="script.js"></script>
   </body>
 </html>
-
-
-
-
-
-
-

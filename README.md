@@ -12,6 +12,9 @@
 - 브라우저 현재 위치 조회
 - Leaflet 지도 클릭 및 핀 드래그를 통한 위치 선택
 - 현재 기온, 체감온도, 습도, 강수량, 풍속, 기압, 구름량 표시
+- 10분 간격 자동 갱신과 수동 새로고침
+- 현재 비가 올 때만 표시되는 RainViewer 비구름 레이더
+- 강수, 자외선, 기온, 바람에 따른 생활 조언
 - 48시간 기온 변화와 강수확률 그래프
 - 향후 7일 최고·최저 기온 및 강수량 그래프
 - 최대 31일 범위의 과거 날씨 조회
@@ -35,6 +38,7 @@
 | 도시 검색 | Open-Meteo Geocoding API |
 | 현재 날씨 및 예보 | Open-Meteo Forecast API |
 | 과거 날씨 | Open-Meteo Historical Weather API |
+| 비구름 레이더 | RainViewer Weather Maps API |
 | 지도 타일 | OpenStreetMap |
 
 Open-Meteo는 이 프로젝트에서 API 키 없이 브라우저에서 직접 호출합니다.
@@ -70,5 +74,6 @@ npx serve .
 - 과거 날씨는 한 번에 최대 31일까지 조회하도록 제한했습니다.
 - OpenStreetMap 지도 사용 시 화면에 표시되는 저작자 표시를 유지해야 합니다.
 - 날씨 데이터의 제공 시점과 정확도는 Open-Meteo 데이터셋에 따릅니다.
+- RainViewer 레이더는 현재 비가 확인될 때만 요청하며 서비스 제공 범위에 따라 일부 지역은 표시되지 않을 수 있습니다.
 
 자세한 구조와 동작 방식은 [프로그램 설명서](docs/PROGRAM_GUIDE.md)를 참고하세요.

@@ -1,22 +1,27 @@
-﻿const API = {
+const API = {
   geocode: "https://geocoding-api.open-meteo.com/v1/search",
   forecast: "https://api.open-meteo.com/v1/forecast",
   archive: "https://archive-api.open-meteo.com/v1/archive",
+  radar: "https://api.rainviewer.com/public/weather-maps.json",
 };
 
-const state = { loading: false, unit: "c", places: [], selectedPlace: null, weather: null, mapPoint: { latitude: 37.5665, longitude: 126.9780 } };
+const state = { loading: false, unit: "c", places: [], selectedPlace: null, weather: null, mapPoint: { latitude: 37.5665, longitude: 126.9780 }, lastRefreshAt: 0, refreshTimer: null, radarMetadata: null };
 let weatherMap;
 let mapMarker;
+let rainRadarMap;
+let rainRadarLayer;
+let rainRadarMarker;
 const $ = (selector) => document.querySelector(selector);
 
 const elements = {
-  form: $("#searchForm"), input: $("#cityInput"), geoButton: $("#geoButton"), unitButton: $("#unitButton"), themeButton: $("#themeButton"), themeIcon: $("#themeIcon"),
+  form: $("#searchForm"), input: $("#cityInput"), geoButton: $("#geoButton"), unitButton: $("#unitButton"), refreshButton: $("#refreshButton"), refreshStatus: $("#refreshStatus"), themeButton: $("#themeButton"), themeIcon: $("#themeIcon"),
   resultStatus: $("#resultStatus"), resultList: $("#resultList"), placeName: $("#placeName"), dateRange: $("#dateRange"),
   latitude: $("#latitude"), longitude: $("#longitude"), timezone: $("#timezone"), elevation: $("#elevation"),
   currentSummary: $("#currentSummary"), currentTemp: $("#currentTemp"), currentTime: $("#currentTime"), weatherIcon: $("#weatherIcon"),
   apparentTemp: $("#apparentTemp"), humidity: $("#humidity"), precipitation: $("#precipitation"), windSpeed: $("#windSpeed"), pressure: $("#pressure"), cloudCover: $("#cloudCover"),
   hourlyList: $("#hourlyList"), pastList: $("#pastList"), futureList: $("#futureList"),
   sunrise: $("#sunrise"), sunset: $("#sunset"), daylight: $("#daylight"), uvIndex: $("#uvIndex"), visibility: $("#visibility"), weeklySummary: $("#weeklySummary"),
+  adviceVisual: $("#adviceVisual"), adviceTitle: $("#adviceTitle"), adviceText: $("#adviceText"), adviceMeta: $("#adviceMeta"), rainRadarSection: $("#rainRadarSection"), rainRadarMap: $("#rainRadarMap"), radarTime: $("#radarTime"),
   mapCoordinates: $("#mapCoordinates"), mapApplyButton: $("#mapApplyButton"), presetList: $("#presetList"), weeklyChart: $("#weeklyChart"), historyChart: $("#historyChart"), historySummary: $("#historySummary"), historyRangeForm: $("#historyRangeForm"), historyStart: $("#historyStart"), historyEnd: $("#historyEnd"), historyRangeStatus: $("#historyRangeStatus"),
   tabs: document.querySelectorAll(".tab-button"), panels: document.querySelectorAll(".tab-panel"),
   resultTemplate: $("#resultTemplate"), hourTemplate: $("#hourTemplate"), dayTemplate: $("#dayTemplate"),
@@ -55,6 +60,7 @@ function setLoading(isLoading) {
   state.loading = isLoading;
   elements.form.querySelector("button").disabled = isLoading;
   elements.geoButton.disabled = isLoading;
+  elements.refreshButton.disabled = isLoading;
   elements.unitButton.disabled = isLoading && !state.weather;
   elements.mapApplyButton.disabled = isLoading;
 }
@@ -156,6 +162,18 @@ async function fetchWeather(place) {
   return { forecast, archive };
 }
 
+async function fetchLatestForecast(place) {
+  const url = buildUrl(API.forecast, {
+    latitude: place.latitude,
+    longitude: place.longitude,
+    timezone: "auto",
+    forecast_days: 8,
+    current: ["temperature_2m", "relative_humidity_2m", "apparent_temperature", "precipitation", "weather_code", "wind_speed_10m", "surface_pressure", "cloud_cover", "is_day"],
+    hourly: ["temperature_2m", "relative_humidity_2m", "precipitation_probability", "weather_code", "wind_speed_10m", "wind_direction_10m", "surface_pressure", "cloud_cover", "visibility", "uv_index"],
+    daily: ["weather_code", "temperature_2m_max", "temperature_2m_min", "precipitation_sum", "precipitation_probability_max", "wind_speed_10m_max", "sunrise", "sunset", "daylight_duration", "uv_index_max"],
+  });
+  return fetchJson(url);
+}
 async function fetchHistoryRange(place, startDate, endDate) {
   const url = buildUrl(API.archive, {
     latitude: place.latitude,
@@ -169,8 +187,9 @@ async function fetchHistoryRange(place, startDate, endDate) {
 }
 function switchTab(tabName) {
   elements.tabs.forEach((button) => button.classList.toggle("active", button.dataset.tab === tabName));
-  elements.panels.forEach((panel) => panel.classList.toggle("active", panel.id === `tab-${tabName}`));
+  elements.panels.forEach((panel) => panel.classList.toggle("active", panel.id === `tab-${tabName}`));
   if (tabName === "location" && weatherMap) setTimeout(() => weatherMap.invalidateSize(), 0);
+  if (tabName === "overview" && rainRadarMap) setTimeout(() => rainRadarMap.invalidateSize(), 0);
 }
 
 function setMapPoint(latitude, longitude, moveView = false) {
@@ -238,6 +257,94 @@ function renderCurrent(current) {
   elements.cloudCover.textContent = `${current.cloud_cover}%`;
 }
 
+const rainCodes = new Set([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99]);
+
+function isCurrentlyRaining(current) {
+  return rainCodes.has(Number(current.weather_code));
+}
+
+function renderAdvice(forecast) {
+  const current = forecast.current;
+  const daily = forecast.daily;
+  const raining = isCurrentlyRaining(current);
+  const rainChance = Number(daily.precipitation_probability_max?.[0] || 0);
+  const uv = Number(daily.uv_index_max?.[0] || 0);
+  const temp = Number(current.temperature_2m);
+  const wind = Number(current.wind_speed_10m);
+  let advice = { kind: "heat", title: "가볍게 나가기 좋은 날씨예요", text: "급격한 변화에 대비해 현재 날씨를 한 번 더 확인하고 외출하세요." };
+
+  if (raining) {
+    advice = { kind: "rain", title: "지금 우산이 꼭 필요해요", text: "현재 비가 내리고 있습니다. 미끄러운 길과 낮아진 시야에도 주의하세요." };
+  } else if (rainChance >= 60 || Number(daily.precipitation_sum?.[0] || 0) > 1) {
+    advice = { kind: "rain", title: "오늘은 우산을 챙겨가세요", text: "지금 비가 오지 않아도 오늘 강수 가능성이 높습니다." };
+  } else if (uv >= 6) {
+    advice = { kind: "sun", title: "외출 전에 선크림을 바르세요", text: "자외선이 강합니다. 모자와 선글라스도 도움이 됩니다." };
+  } else if (temp >= 28) {
+    advice = { kind: "heat", title: "물병을 챙기고 자주 쉬세요", text: "더운 날씨에는 갈증이 나기 전부터 수분을 보충하는 것이 좋습니다." };
+  } else if (temp <= 5) {
+    advice = { kind: "cold", title: "따뜻한 겉옷을 챙기세요", text: "기온이 낮습니다. 목과 손을 보호할 수 있는 옷차림이 좋습니다." };
+  } else if (wind >= 30) {
+    advice = { kind: "cold", title: "바람을 막을 겉옷이 필요해요", text: "바람이 강해 체감온도가 낮아질 수 있습니다." };
+  }
+
+  elements.adviceVisual.dataset.kind = advice.kind;
+  elements.adviceTitle.textContent = advice.title;
+  elements.adviceText.textContent = advice.text;
+  elements.adviceMeta.replaceChildren();
+  [["강수확률", rainChance + "%"], ["UV", uv.toFixed(1)], ["바람", Math.round(wind) + " km/h"]].forEach(([label, value]) => {
+    const chip = document.createElement("span");
+    chip.textContent = label + " " + value;
+    elements.adviceMeta.append(chip);
+  });
+}
+
+async function getRadarMetadata() {
+  if (state.radarMetadata && Date.now() - state.radarMetadata.fetchedAt < 300000) return state.radarMetadata.data;
+  const data = await fetchJson(API.radar);
+  state.radarMetadata = { data, fetchedAt: Date.now() };
+  return data;
+}
+
+async function renderRainRadar(place, current) {
+  if (!isCurrentlyRaining(current) || !window.L) {
+    elements.rainRadarSection.hidden = true;
+    return;
+  }
+
+  elements.rainRadarSection.hidden = false;
+  elements.radarTime.textContent = "레이더 불러오는 중";
+  try {
+    const data = await getRadarMetadata();
+    if (state.selectedPlace?.id !== place.id) return;
+    const frame = data.radar?.past?.at(-1);
+    if (!frame) throw new Error("사용 가능한 레이더가 없습니다.");
+    const center = [place.latitude, place.longitude];
+
+    if (!rainRadarMap) {
+      rainRadarMap = L.map("rainRadarMap", { worldCopyJump: true }).setView(center, 7);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 18,
+        attribution: "&copy; OpenStreetMap",
+      }).addTo(rainRadarMap);
+      rainRadarMap.createPane("radarPane");
+      rainRadarMap.getPane("radarPane").style.zIndex = 450;
+      rainRadarMarker = L.marker(center).addTo(rainRadarMap);
+    } else {
+      rainRadarMap.setView(center, Math.max(6, rainRadarMap.getZoom()));
+      rainRadarMarker.setLatLng(center);
+    }
+
+    if (rainRadarLayer) rainRadarLayer.remove();
+    const tileUrl = data.host + frame.path + "/256/{z}/{x}/{y}/2/1_1.png";
+    rainRadarLayer = L.tileLayer(tileUrl, { pane: "radarPane", opacity: 0.78, maxNativeZoom: 7, maxZoom: 18 });
+    rainRadarLayer.addTo(rainRadarMap);
+    const radarTime = new Intl.DateTimeFormat("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(frame.time * 1000));
+    elements.radarTime.textContent = radarTime + " 기준";
+    setTimeout(() => rainRadarMap.invalidateSize(), 0);
+  } catch (error) {
+    elements.radarTime.textContent = "레이더 데이터를 불러오지 못했습니다.";
+  }
+}
 function renderHourly(hourly) {
   elements.hourlyList.replaceChildren();
   const now = Date.now();
@@ -478,6 +585,8 @@ function renderPlace(place, weather) {
   setMapPoint(place.latitude, place.longitude, true);
   renderResults();
   renderCurrent(weather.forecast.current);
+  renderAdvice(weather.forecast);
+  renderRainRadar(place, weather.forecast.current);
   renderHourly(weather.forecast.hourly);
   renderDaily(elements.futureList, weather.forecast.daily, { skipToday: true, limit: 7 });
   renderWeeklyChart(weather.forecast.daily);
@@ -490,6 +599,10 @@ function renderPlace(place, weather) {
   elements.historyEnd.max = yesterday;
   elements.historyRangeStatus.textContent = formatDate(weather.archive.daily.time[0]) + " - " + formatDate(weather.archive.daily.time.at(-1));
   renderInsights(weather.forecast);
+  if (state.lastRefreshAt) {
+    const refreshed = new Intl.DateTimeFormat("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date(state.lastRefreshAt));
+    elements.refreshStatus.textContent = refreshed + " 갱신 · 10분마다 자동";
+  }
 }
 
 function renderError(message) {
@@ -510,7 +623,9 @@ async function loadPlace(place) {
   elements.currentSummary.textContent = "상세 날씨 데이터를 불러오는 중입니다.";
   try {
     const weather = await fetchWeather(place);
+    state.lastRefreshAt = Date.now();
     renderPlace(place, weather);
+    startAutoRefresh();
   } catch (error) {
     renderError(error.message || "날씨 데이터를 불러오지 못했습니다.");
   } finally {
@@ -542,6 +657,34 @@ async function loadByCoordinates(latitude, longitude, label = "선택 위치") {
   await loadPlace(place);
 }
 
+const AUTO_REFRESH_MS = 10 * 60 * 1000;
+
+function startAutoRefresh() {
+  if (state.refreshTimer) clearInterval(state.refreshTimer);
+  state.refreshTimer = setInterval(() => {
+    if (!document.hidden) refreshSelectedWeather(false);
+  }, AUTO_REFRESH_MS);
+}
+
+async function refreshSelectedWeather(manual = false) {
+  if (!state.selectedPlace || !state.weather || state.loading) return;
+  const place = state.selectedPlace;
+  setLoading(true);
+  elements.refreshButton.classList.add("refreshing");
+  elements.refreshStatus.textContent = manual ? "새 날씨를 불러오는 중" : "자동 갱신 중";
+  try {
+    const forecast = await fetchLatestForecast(place);
+    if (state.selectedPlace?.id !== place.id) return;
+    state.weather = { forecast, archive: state.weather.archive };
+    state.lastRefreshAt = Date.now();
+    renderPlace(place, state.weather);
+  } catch (error) {
+    elements.refreshStatus.textContent = "갱신 실패 · 잠시 후 다시 시도";
+  } finally {
+    elements.refreshButton.classList.remove("refreshing");
+    setLoading(false);
+  }
+}
 elements.form.addEventListener("submit", (event) => {
   event.preventDefault();
   loadByQuery(elements.input.value);
@@ -563,6 +706,13 @@ elements.unitButton.addEventListener("click", () => {
   if (state.selectedPlace && state.weather) renderPlace(state.selectedPlace, state.weather);
 });
 
+elements.refreshButton.addEventListener("click", () => refreshSelectedWeather(true));
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && state.lastRefreshAt && Date.now() - state.lastRefreshAt >= AUTO_REFRESH_MS) {
+    refreshSelectedWeather(false);
+  }
+});
 elements.themeButton.addEventListener("click", () => {
   const nextTheme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
   applyTheme(nextTheme, true);
@@ -628,12 +778,3 @@ document.querySelectorAll("[data-history-days]").forEach((button) => {
 initMap();
 renderPresets();
 loadByQuery(elements.input.value);
-
-
-
-
-
-
-
-
-
