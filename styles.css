@@ -529,15 +529,15 @@ html[data-theme="dark"] .leaflet-control-attribution a { color: #80d4c5; }
 .refresh-status { display: block; margin: 7px 0 0 16px; color: var(--accent-strong); font-size: 0.74rem; font-weight: 800; }
 
 .advice-panel { display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: 220px; margin-bottom: 18px; overflow: hidden; border: 1px solid #e2c875; border-radius: 8px; background: #fff4c9; box-shadow: 0 14px 32px rgba(87, 68, 20, 0.12); }
-.advice-visual { position: relative; min-height: 220px; background-color: #e8dcae; background-image: url("assets/advice-sun.png?v=20260715-7"); background-position: center; background-repeat: no-repeat; background-size: cover; }
+.advice-visual { position: relative; min-height: 220px; background-color: #e8dcae; background-image: url("assets/advice-sun.png?v=20260715-8"); background-position: center; background-repeat: no-repeat; background-size: cover; }
 .advice-visual::after { position: absolute; right: 12px; bottom: 12px; display: grid; width: 38px; height: 38px; place-items: center; border: 1px solid rgba(255, 255, 255, 0.65); border-radius: 50%; background: rgba(22, 36, 31, 0.72); color: #fff; content: "☀"; font-size: 1.2rem; box-shadow: 0 6px 16px rgba(18, 36, 30, 0.22); }
 .advice-visual[data-kind="rain"]::after { content: "☂"; }
 .advice-visual[data-kind="cold"]::after { content: "❄"; }
 .advice-visual[data-kind="heat"]::after { content: "♨"; }
-.advice-visual[data-kind="rain"] { background-image: url("assets/advice-rain.png?v=20260715-7"); }
-.advice-visual[data-kind="sun"] { background-image: url("assets/advice-sun.png?v=20260715-7"); }
-.advice-visual[data-kind="cold"] { background-image: url("assets/advice-cold.png?v=20260715-7"); }
-.advice-visual[data-kind="heat"] { background-image: url("assets/advice-heat.png?v=20260715-7"); }
+.advice-visual[data-kind="rain"] { background-image: url("assets/advice-rain.png?v=20260715-8"); }
+.advice-visual[data-kind="sun"] { background-image: url("assets/advice-sun.png?v=20260715-8"); }
+.advice-visual[data-kind="cold"] { background-image: url("assets/advice-cold.png?v=20260715-8"); }
+.advice-visual[data-kind="heat"] { background-image: url("assets/advice-heat.png?v=20260715-8"); }
 .advice-copy { align-self: center; padding: 26px 30px; }
 .advice-label { margin-bottom: 8px; color: #a9473d; font-size: 0.76rem; font-weight: 900; text-transform: uppercase; }
 .advice-copy h2 { color: #28302d; font-size: 1.55rem; }
@@ -644,3 +644,29 @@ html[data-theme="dark"] .compare-card { background: #111816; }
 .search-surface { grid-template-columns: 1fr; }
 
 .place-chip-list .data-state, .compare-selector .data-state { min-height: 64px; padding: 8px; }
+
+/* Discoverable favorites and preserved place identity */
+.quick-actions { display: flex; flex-wrap: wrap; }
+.quick-actions > #geoButton, .quick-actions > #unitButton, .favorite-button { flex: 1 1 128px; }
+.quick-actions .icon-button { flex: 0 0 48px; width: 48px; }
+.favorite-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: 142px; }
+.favorite-button .favorite-icon { font-size: 1.15rem; line-height: 1; }
+.favorite-button[aria-pressed="true"] { border-color: #d9a526; background: #fff4c9; color: #6c4b00; }
+.saved-places-bar { display: flex; align-items: center; justify-content: space-between; gap: 18px; min-height: 66px; margin-bottom: 14px; padding: 11px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+.saved-places-heading { flex: 0 0 auto; }
+.saved-places-heading strong, .saved-places-heading span { display: block; }
+.saved-places-heading strong { font-size: .86rem; }
+.saved-places-heading span { margin-top: 3px; color: var(--muted); font-size: .72rem; font-weight: 700; }
+.favorite-quick-list { display: flex; flex: 1 1 auto; flex-wrap: wrap; justify-content: flex-end; gap: 7px; min-width: 0; }
+.favorite-quick-list .place-chip { min-height: 36px; background: var(--soft); }
+.favorite-empty { color: var(--muted); font-size: .78rem; font-weight: 750; }
+html[data-theme="dark"] .favorite-button[aria-pressed="true"] { border-color: #a6812a; background: #3a321a; color: #f5d671; }
+@media (max-width: 820px) {
+  .quick-actions .icon-button { flex: 1 1 44px; width: auto; }
+  .saved-places-bar { align-items: stretch; flex-direction: column; }
+  .favorite-quick-list { justify-content: flex-start; }
+}
+@media (max-width: 480px) {
+  .quick-actions > #geoButton, .quick-actions > #unitButton, .favorite-button { flex-basis: calc(50% - 4px); }
+  .favorite-button { order: 3; flex-basis: 100%; }
+}

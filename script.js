@@ -15,7 +15,7 @@ let rainRadarMarker;
 const $ = (selector) => document.querySelector(selector);
 
 const elements = {
-  form: $("#searchForm"), input: $("#cityInput"), geoButton: $("#geoButton"), unitButton: $("#unitButton"), favoriteButton: $("#favoriteButton"), notifyButton: $("#notifyButton"), settingsButton: $("#settingsButton"), settingsPanel: $("#settingsPanel"), installButton: $("#installButton"), languageSelect: $("#languageSelect"), windUnitSelect: $("#windUnitSelect"), precipUnitSelect: $("#precipUnitSelect"), pressureUnitSelect: $("#pressureUnitSelect"), refreshButton: $("#refreshButton"), refreshStatus: $("#refreshStatus"), themeButton: $("#themeButton"), themeIcon: $("#themeIcon"), offlineBanner: $("#offlineBanner"), toast: $("#toast"),
+  form: $("#searchForm"), input: $("#cityInput"), geoButton: $("#geoButton"), unitButton: $("#unitButton"), favoriteButton: $("#favoriteButton"), favoriteButtonLabel: $("#favoriteButtonLabel"), favoriteQuickList: $("#favoriteQuickList"), favoriteHelp: $("#favoriteHelp"), notifyButton: $("#notifyButton"), settingsButton: $("#settingsButton"), settingsPanel: $("#settingsPanel"), installButton: $("#installButton"), languageSelect: $("#languageSelect"), windUnitSelect: $("#windUnitSelect"), precipUnitSelect: $("#precipUnitSelect"), pressureUnitSelect: $("#pressureUnitSelect"), refreshButton: $("#refreshButton"), refreshStatus: $("#refreshStatus"), themeButton: $("#themeButton"), themeIcon: $("#themeIcon"), offlineBanner: $("#offlineBanner"), toast: $("#toast"),
   resultStatus: $("#resultStatus"), resultList: $("#resultList"), placeName: $("#placeName"), dateRange: $("#dateRange"),
   latitude: $("#latitude"), longitude: $("#longitude"), timezone: $("#timezone"), elevation: $("#elevation"),
   currentSummary: $("#currentSummary"), currentTemp: $("#currentTemp"), currentTime: $("#currentTime"), weatherIcon: $("#weatherIcon"),
@@ -243,10 +243,10 @@ function switchTab(tabName) {
   updateUrlState();
 }
 
-function setMapPoint(latitude, longitude, moveView = false) {
-  state.mapPoint = { latitude, longitude };
+function setMapPoint(latitude, longitude, moveView = false, place = null) {
+  state.mapPoint = { latitude, longitude, place };
   elements.mapCoordinates.textContent = latitude.toFixed(4) + ", " + longitude.toFixed(4);
-  elements.mapPlaceLabel.textContent = tr("핀으로 선택한 위치", "Pinned location");
+  elements.mapPlaceLabel.textContent = place?.shortName || place?.name || tr("핀으로 선택한 위치", "Pinned location");
   if (mapMarker) mapMarker.setLatLng([latitude, longitude]);
   if (moveView && weatherMap) weatherMap.setView([latitude, longitude], Math.max(weatherMap.getZoom(), 7));
 }
@@ -290,7 +290,7 @@ function renderResults() {
     card.querySelector(".result-name").textContent = place.name;
     card.querySelector(".result-detail").textContent = `${place.latitude.toFixed(2)}, ${place.longitude.toFixed(2)} · ${place.timezone}`;
     card.querySelector(".result-action").textContent = state.selectedPlace?.id === place.id ? "선택됨" : "선택";
-    card.addEventListener("click", () => loadPlace(place));
+    card.addEventListener("click", () => { loadPlace(place); switchTab("overview"); });
     elements.resultList.append(card);
   });
 }
@@ -666,8 +666,7 @@ function renderPlace(place, weather) {
   elements.longitude.textContent = place.longitude.toFixed(4);
   elements.timezone.textContent = weather.forecast.timezone || place.timezone;
   elements.elevation.textContent = `${Math.round(weather.forecast.elevation ?? place.elevation ?? 0)} m`;
-  setMapPoint(place.latitude, place.longitude, true);
-  elements.mapPlaceLabel.textContent = place.shortName || place.name;
+  setMapPoint(place.latitude, place.longitude, true, place);
   renderResults();
   renderCurrent(weather.forecast.current);
   renderAdvice(weather.forecast);
@@ -916,8 +915,9 @@ function isFavorite(place = state.selectedPlace) {
 
 function updateFavoriteButton() {
   const active = isFavorite();
-  elements.favoriteButton.querySelector("span").textContent = active ? "★" : "☆";
-  elements.favoriteButton.setAttribute("aria-label", active ? "즐겨찾기 삭제" : "즐겨찾기 추가");
+  elements.favoriteButton.querySelector(".favorite-icon").textContent = active ? "★" : "☆";
+  elements.favoriteButtonLabel.textContent = active ? tr("즐겨찾기 저장됨", "Saved favorite") : tr("즐겨찾기 추가", "Add favorite");
+  elements.favoriteButton.setAttribute("aria-label", active ? tr("즐겨찾기에서 삭제", "Remove favorite") : tr("즐겨찾기에 추가", "Add favorite"));
   elements.favoriteButton.setAttribute("aria-pressed", String(active));
 }
 
@@ -969,10 +969,21 @@ function placeChip(place, removable = false) {
 
 function renderPlaceLibraries() {
   elements.favoriteList.replaceChildren();
+  elements.favoriteQuickList.replaceChildren();
   elements.recentList.replaceChildren();
-  if (!state.favorites.length) renderDataState(elements.favoriteList, "저장한 도시가 없습니다.", false);
-  else state.favorites.forEach((place) => elements.favoriteList.append(placeChip(place, true)));
-  if (!state.recentPlaces.length) renderDataState(elements.recentList, "최근 조회 위치가 없습니다.", false);
+  if (!state.favorites.length) {
+    renderDataState(elements.favoriteList, tr("저장한 도시가 없습니다.", "No saved cities yet."), false);
+    const empty = document.createElement("span");
+    empty.className = "favorite-empty";
+    empty.textContent = tr("아직 저장한 도시가 없습니다.", "No saved cities yet.");
+    elements.favoriteQuickList.append(empty);
+  } else {
+    state.favorites.forEach((place) => {
+      elements.favoriteList.append(placeChip(place, true));
+      elements.favoriteQuickList.append(placeChip(place));
+    });
+  }
+  if (!state.recentPlaces.length) renderDataState(elements.recentList, tr("최근 조회 위치가 없습니다.", "No recent places."), false);
   else state.recentPlaces.forEach((place) => elements.recentList.append(placeChip(place)));
 }
 
@@ -1072,6 +1083,7 @@ function applyLanguage() {
     "[data-tab=weekly]": ["주간", "Weekly"], "[data-tab=history]": ["과거", "History"], "[data-tab=compare]": ["도시 비교", "Compare"],
     "#geoButton": ["현재 위치", "My location"], "#mapApplyButton": ["이 위치 날씨 보기", "Use this location"], "#searchForm button": ["검색", "Search"],
     ".lead": ["원하는 위치를 선택하고 필요한 정보만 탭으로 나눠 확인합니다.", "Choose any place and explore focused weather views."],
+    ".saved-places-heading strong": ["즐겨찾기", "Favorites"], "#favoriteHelp": ["상단의 즐겨찾기 추가 버튼으로 현재 도시를 저장하세요.", "Use Add favorite above to save the current city."],
     ".advice-label": ["오늘의 준비", "TODAY'S CHECK"], ".air-quality-panel .panel-header h2": ["대기질과 건강", "Air quality & health"],
     "#tab-hourly .panel-header h2": ["48시간 흐름", "48-hour outlook"], "#tab-weekly .panel-header h2": ["앞으로 7일", "Next 7 days"],
     "#tab-history .panel-header h2": ["과거 날씨 조회", "Weather history"], "#tab-compare .panel-header h2": ["도시 날씨 비교", "City comparison"],
@@ -1137,7 +1149,7 @@ function initializeConnectionState() {
 }
 
 function registerPwa() {
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("service-worker.js?v=20260715-7").catch(() => {});
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("service-worker.js?v=20260715-8").catch(() => {});
   let installPrompt;
   addEventListener("beforeinstallprompt", (event) => { event.preventDefault(); installPrompt = event; elements.installButton.hidden = false; });
   elements.installButton.addEventListener("click", async () => {
@@ -1211,7 +1223,8 @@ elements.themeButton.addEventListener("click", () => {
 elements.tabs.forEach((button) => button.addEventListener("click", () => switchTab(button.dataset.tab)));
 
 elements.mapApplyButton.addEventListener("click", () => {
-  loadByCoordinates(state.mapPoint.latitude, state.mapPoint.longitude, "지도 선택 위치");
+  if (state.mapPoint.place) loadPlace(state.mapPoint.place);
+  else loadByCoordinates(state.mapPoint.latitude, state.mapPoint.longitude, tr("지도에서 선택한 위치", "Map-selected location"));
   switchTab("overview");
 });
 
