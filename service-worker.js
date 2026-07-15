@@ -1,14 +1,14 @@
-const CACHE_NAME = "world-weather-atlas-v13";
+const CACHE_NAME = "world-weather-atlas-v14";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=20260715-13",
-  "./script.js?v=20260715-13",
-  "./manifest.webmanifest?v=20260715-13",
-  "./assets/advice-rain.png?v=20260715-13",
-  "./assets/advice-sun.png?v=20260715-13",
-  "./assets/advice-cold.png?v=20260715-13",
-  "./assets/advice-heat.png?v=20260715-13",
+  "./styles.css?v=20260715-14",
+  "./script.js?v=20260715-14",
+  "./manifest.webmanifest?v=20260715-14",
+  "./assets/advice-rain.png?v=20260715-14",
+  "./assets/advice-sun.png?v=20260715-14",
+  "./assets/advice-cold.png?v=20260715-14",
+  "./assets/advice-heat.png?v=20260715-14",
   "./assets/icon-192.png",
   "./assets/icon-512.png"
 ];
