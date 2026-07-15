@@ -1578,7 +1578,7 @@ function initializeConnectionState() {
 }
 
 function registerPwa() {
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("service-worker.js?v=20260715-16").catch(() => {});
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("service-worker.js?v=20260715-17").catch(() => {});
   let installPrompt;
   addEventListener("beforeinstallprompt", (event) => { event.preventDefault(); installPrompt = event; elements.installButton.hidden = false; });
   elements.installButton.addEventListener("click", async () => {

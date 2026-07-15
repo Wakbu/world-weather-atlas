@@ -529,15 +529,15 @@ html[data-theme="dark"] .leaflet-control-attribution a { color: #80d4c5; }
 .refresh-status { display: block; margin: 7px 0 0 16px; color: var(--accent-strong); font-size: 0.74rem; font-weight: 800; }
 
 .advice-panel { display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: 220px; margin-bottom: 18px; overflow: hidden; border: 1px solid #e2c875; border-radius: 8px; background: #fff4c9; box-shadow: 0 14px 32px rgba(87, 68, 20, 0.12); }
-.advice-visual { position: relative; min-height: 220px; background-color: #e8dcae; background-image: url("assets/advice-sun.png?v=20260715-16"); background-position: center; background-repeat: no-repeat; background-size: cover; }
+.advice-visual { position: relative; min-height: 220px; background-color: #e8dcae; background-image: url("assets/advice-sun.png?v=20260715-17"); background-position: center; background-repeat: no-repeat; background-size: cover; }
 .advice-visual::after { position: absolute; right: 12px; bottom: 12px; display: grid; width: 38px; height: 38px; place-items: center; border: 1px solid rgba(255, 255, 255, 0.65); border-radius: 50%; background: rgba(22, 36, 31, 0.72); color: #fff; content: "☀"; font-size: 1.2rem; box-shadow: 0 6px 16px rgba(18, 36, 30, 0.22); }
 .advice-visual[data-kind="rain"]::after { content: "☂"; }
 .advice-visual[data-kind="cold"]::after { content: "❄"; }
 .advice-visual[data-kind="heat"]::after { content: "♨"; }
-.advice-visual[data-kind="rain"] { background-image: url("assets/advice-rain.png?v=20260715-16"); }
-.advice-visual[data-kind="sun"] { background-image: url("assets/advice-sun.png?v=20260715-16"); }
-.advice-visual[data-kind="cold"] { background-image: url("assets/advice-cold.png?v=20260715-16"); }
-.advice-visual[data-kind="heat"] { background-image: url("assets/advice-heat.png?v=20260715-16"); }
+.advice-visual[data-kind="rain"] { background-image: url("assets/advice-rain.png?v=20260715-17"); }
+.advice-visual[data-kind="sun"] { background-image: url("assets/advice-sun.png?v=20260715-17"); }
+.advice-visual[data-kind="cold"] { background-image: url("assets/advice-cold.png?v=20260715-17"); }
+.advice-visual[data-kind="heat"] { background-image: url("assets/advice-heat.png?v=20260715-17"); }
 .advice-copy { align-self: center; padding: 26px 30px; }
 .advice-label { margin-bottom: 8px; color: #a9473d; font-size: 0.76rem; font-weight: 900; text-transform: uppercase; }
 .advice-copy h2 { color: #28302d; font-size: 1.55rem; }
@@ -762,7 +762,8 @@ html[data-theme="dark"] .wind-glyph b { border-color: #10231f; background: rgba(
 .activity-meter i { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
 .activity-row[data-score="low"] .activity-meter i { background: #c64945; }
 .activity-row[data-score="mid"] .activity-meter i { background: #d9a526; }
-.service-meta-grid { grid-template-columns: minmax(0, .8fr) minmax(420px, 1.2fr); }
+.service-meta-grid { position: relative; z-index: 0; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); align-items: stretch; margin-top: 18px; clear: both; }
+.service-meta-grid .panel { position: relative; width: 100%; height: 100%; isolation: isolate; }
 .trust-details { display: flex; flex-wrap: wrap; gap: 8px; padding: 16px; }
 .trust-chip { padding: 8px 10px; border: 1px solid var(--line); border-radius: 5px; background: var(--soft); color: var(--muted); font-size: .74rem; font-weight: 850; }
 .trust-chip.ok { border-color: #61a494; color: #176b5d; }
