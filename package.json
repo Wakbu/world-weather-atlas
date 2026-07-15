@@ -1,0 +1,7 @@
+{
+  "name": "world-weather-atlas",
+  "private": true,
+  "scripts": {
+    "test": "node tests/smoke.mjs"
+  }
+}

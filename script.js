@@ -6,7 +6,7 @@ const API = {
   air: "https://air-quality-api.open-meteo.com/v1/air-quality",
 };
 
-const state = { loading: false, unit: "c", windUnit: "kmh", precipUnit: "mm", pressureUnit: "hpa", language: "ko", places: [], selectedPlace: null, weather: null, airQuality: null, favorites: [], recentPlaces: [], compareIds: [], mapPoint: { latitude: 37.5665, longitude: 126.9780 }, lastRefreshAt: 0, refreshTimer: null, radarMetadata: null, activeTab: "overview", notificationEnabled: false, lastRainNotice: "", weatherLayer: "radar" };
+const state = { loading: false, unit: "c", windUnit: "kmh", precipUnit: "mm", pressureUnit: "hpa", language: "ko", colorSafe: false, places: [], selectedPlace: null, weather: null, airQuality: null, favorites: [], recentPlaces: [], compareIds: [], alertRules: {}, dataMeta: null, mapPoint: { latitude: 37.5665, longitude: 126.9780 }, lastRefreshAt: 0, refreshTimer: null, radarMetadata: null, activeTab: "overview", notificationEnabled: false, lastRainNotice: "", weatherLayer: "radar" };
 let weatherMap;
 let mapMarker;
 let rainRadarMap;
@@ -30,7 +30,7 @@ const elements = {
   sunrise: $("#sunrise"), sunset: $("#sunset"), daylight: $("#daylight"), uvIndex: $("#uvIndex"), visibility: $("#visibility"), weeklySummary: $("#weeklySummary"),
   adviceVisual: $("#adviceVisual"), adviceTitle: $("#adviceTitle"), adviceText: $("#adviceText"), adviceMeta: $("#adviceMeta"), rainRadarSection: $("#rainRadarSection"), rainRadarMap: $("#rainRadarMap"), radarTime: $("#radarTime"), airQualityStatus: $("#airQualityStatus"), airQualityIndex: $("#airQualityIndex"), airQualityLevel: $("#airQualityLevel"), pm25: $("#pm25"), pm10: $("#pm10"), ozone: $("#ozone"), nitrogenDioxide: $("#nitrogenDioxide"),
   mapCoordinates: $("#mapCoordinates"), mapPlaceLabel: $("#mapPlaceLabel"), mapApplyButton: $("#mapApplyButton"), presetList: $("#presetList"), favoriteList: $("#favoriteList"), recentList: $("#recentList"), compareSelector: $("#compareSelector"), compareGrid: $("#compareGrid"), compareStatus: $("#compareStatus"), weeklyChart: $("#weeklyChart"), historyChart: $("#historyChart"), historySummary: $("#historySummary"), historyRangeForm: $("#historyRangeForm"), historyStart: $("#historyStart"), historyEnd: $("#historyEnd"), historyRangeStatus: $("#historyRangeStatus"),
-  atmosphereMap: $("#atmosphereMap"), atmosphereStatus: $("#atmosphereStatus"), atmosphereLegend: $("#atmosphereLegend"), layerRefreshButton: $("#layerRefreshButton"), layerButtons: document.querySelectorAll("[data-weather-layer]"),
+  atmosphereMap: $("#atmosphereMap"), atmosphereStatus: $("#atmosphereStatus"), atmosphereLegend: $("#atmosphereLegend"), layerRefreshButton: $("#layerRefreshButton"), layerButtons: document.querySelectorAll("[data-weather-layer]"), hazardPanel: $("#hazardPanel"), hazardTitle: $("#hazardTitle"), hazardList: $("#hazardList"), precipTimeline: $("#precipTimeline"), precipTimelineSummary: $("#precipTimelineSummary"), activityGrid: $("#activityGrid"), moonPhase: $("#moonPhase"), sunProgress: $("#sunProgress"), dataTrustLevel: $("#dataTrustLevel"), dataTrustDetails: $("#dataTrustDetails"), alertPlaceName: $("#alertPlaceName"), alertRain: $("#alertRain"), alertSnow: $("#alertSnow"), alertHeat: $("#alertHeat"), alertAir: $("#alertAir"), saveAlertSettings: $("#saveAlertSettings"), colorSafeToggle: $("#colorSafeToggle"),
   tabs: document.querySelectorAll(".tab-button"), panels: document.querySelectorAll(".tab-panel"),
   resultTemplate: $("#resultTemplate"), hourTemplate: $("#hourTemplate"), dayTemplate: $("#dayTemplate"),
 };
@@ -242,7 +242,7 @@ async function fetchHistoryRange(place, startDate, endDate) {
 }
 function switchTab(tabName) {
   state.activeTab = tabName;
-  elements.tabs.forEach((button) => button.classList.toggle("active", button.dataset.tab === tabName));
+  elements.tabs.forEach((button) => { const active = button.dataset.tab === tabName; button.classList.toggle("active", active); button.setAttribute("aria-selected", String(active)); button.tabIndex = active ? 0 : -1; });
   elements.panels.forEach((panel) => panel.classList.toggle("active", panel.id === `tab-${tabName}`));
   if (tabName === "location" && weatherMap) setTimeout(() => weatherMap.invalidateSize(), 0);
   if (tabName === "overview" && rainRadarMap) setTimeout(() => rainRadarMap.invalidateSize(), 0);
@@ -255,6 +255,26 @@ function switchTab(tabName) {
   updateUrlState();
 }
 
+function initializeTabAccessibility() {
+  elements.tabs.forEach((button, index) => {
+    const panel = document.querySelector("#tab-" + button.dataset.tab);
+    button.id = "weather-tab-" + button.dataset.tab;
+    button.setAttribute("role", "tab");
+    button.setAttribute("aria-controls", panel.id);
+    button.setAttribute("aria-selected", String(button.classList.contains("active")));
+    button.tabIndex = button.classList.contains("active") ? 0 : -1;
+    panel.setAttribute("role", "tabpanel");
+    panel.setAttribute("aria-labelledby", button.id);
+    button.addEventListener("keydown", (event) => {
+      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+      event.preventDefault();
+      const last = elements.tabs.length - 1;
+      const next = event.key === "Home" ? 0 : event.key === "End" ? last : event.key === "ArrowRight" ? (index + 1) % elements.tabs.length : (index - 1 + elements.tabs.length) % elements.tabs.length;
+      elements.tabs[next].focus();
+      switchTab(elements.tabs[next].dataset.tab);
+    });
+  });
+}
 function setMapPoint(latitude, longitude, moveView = false, place = null) {
   state.mapPoint = { latitude, longitude, place };
   elements.mapCoordinates.textContent = latitude.toFixed(4) + ", " + longitude.toFixed(4);
@@ -378,6 +398,176 @@ function renderAdviceFallback() {
   });
 }
 
+function forecastWindow(forecast, hours = 24) {
+  const hourly = forecast.hourly;
+  const start = Math.max(0, hourly.time.findIndex((time) => new Date(time).getTime() >= Date.now()));
+  return { hourly, start, end: Math.min(hourly.time.length, start + hours) };
+}
+
+function deriveHazards(forecast, airQuality) {
+  const { hourly, start, end } = forecastWindow(forecast);
+  const values = (key) => (hourly[key] || []).slice(start, end).map(Number);
+  const codes = values("weather_code");
+  const rain = values("precipitation");
+  const wind = values("wind_speed_10m");
+  const maxTemp = Number(forecast.daily.temperature_2m_max?.[0]);
+  const minTemp = Number(forecast.daily.temperature_2m_min?.[0]);
+  const maxRain = Math.max(0, ...rain);
+  const maxWind = Math.max(0, ...wind);
+  const aqi = Number(airQuality?.current?.us_aqi);
+  const hazards = [];
+  if (codes.some((code) => code >= 95)) hazards.push({ level: "danger", text: tr("뇌우 가능성", "Thunderstorm risk") });
+  if (maxRain >= 10 || Number(forecast.daily.precipitation_sum?.[0]) >= 30) hazards.push({ level: "danger", text: tr("강한 비 가능성", "Heavy rain risk") });
+  else if (maxRain >= 4 || Number(forecast.daily.precipitation_sum?.[0]) >= 10) hazards.push({ level: "warning", text: tr("많은 비 주의", "Rain caution") });
+  if (codes.some((code) => code >= 71 && code <= 86)) hazards.push({ level: "warning", text: tr("눈·결빙 주의", "Snow and ice caution") });
+  if (maxTemp >= 33) hazards.push({ level: maxTemp >= 36 ? "danger" : "warning", text: tr("폭염 위험", "Heat risk") });
+  if (minTemp <= -12) hazards.push({ level: minTemp <= -18 ? "danger" : "warning", text: tr("한파 위험", "Cold risk") });
+  if (maxWind >= 50) hazards.push({ level: maxWind >= 70 ? "danger" : "warning", text: tr("강풍 위험", "Strong wind risk") });
+  if (aqi >= 151) hazards.push({ level: aqi >= 201 ? "danger" : "warning", text: tr("대기질 건강 주의", "Air quality health risk") });
+  return hazards;
+}
+
+function renderHazards(forecast, airQuality) {
+  const hazards = deriveHazards(forecast, airQuality);
+  elements.hazardList.replaceChildren();
+  elements.hazardPanel.hidden = hazards.length === 0;
+  if (!hazards.length) return;
+  elements.hazardTitle.textContent = hazards.some((item) => item.level === "danger") ? tr("외출 전 반드시 확인하세요", "Check before going outside") : tr("오늘 주의할 날씨가 있습니다", "Weather needs attention today");
+  hazards.forEach((hazard) => {
+    const chip = document.createElement("span");
+    chip.className = "hazard-chip " + hazard.level;
+    chip.textContent = hazard.text;
+    elements.hazardList.append(chip);
+  });
+}
+
+function renderPrecipTimeline(forecast) {
+  const { hourly, start, end } = forecastWindow(forecast);
+  elements.precipTimeline.replaceChildren();
+  let peakChance = 0;
+  let peakTime = null;
+  for (let index = start; index < end; index += 1) {
+    const chance = Number(hourly.precipitation_probability?.[index] || 0);
+    const amount = Number(hourly.precipitation?.[index] || 0);
+    if (chance > peakChance) { peakChance = chance; peakTime = hourly.time[index]; }
+    const cell = document.createElement("div");
+    cell.className = "precip-hour";
+    cell.dataset.level = amount >= 4 || chance >= 80 ? "3" : amount >= 1 || chance >= 50 ? "2" : "1";
+    cell.setAttribute("aria-label", formatHour(hourly.time[index]) + ", " + tr("강수확률 ", "rain chance ") + chance + "%, " + displayPrecip(amount));
+    const value = document.createElement("strong");
+    const track = document.createElement("div");
+    const bar = document.createElement("i");
+    const label = document.createElement("small");
+    track.className = "precip-bar-track";
+    bar.className = "precip-bar";
+    bar.style.height = Math.max(4, chance) + "%";
+    value.textContent = chance ? chance + "%" : "";
+    label.textContent = index % 3 === start % 3 ? new Intl.DateTimeFormat(state.language === "en" ? "en-US" : "ko-KR", { hour: "2-digit" }).format(new Date(hourly.time[index])) : "";
+    track.append(bar);
+    cell.append(value, track, label);
+    elements.precipTimeline.append(cell);
+  }
+  elements.precipTimelineSummary.textContent = peakTime ? formatHour(peakTime) + " · " + tr("최대 ", "peak ") + peakChance + "%" : tr("강수 가능성 낮음", "Low rain chance");
+}
+
+function scoreLabel(score, inverse = false) {
+  if (inverse) return score >= 70 ? tr("높음", "High") : score >= 35 ? tr("보통", "Medium") : tr("낮음", "Low");
+  return score >= 75 ? tr("좋음", "Good") : score >= 45 ? tr("보통", "Fair") : tr("비추천", "Poor");
+}
+
+function renderActivities(forecast, airQuality) {
+  const current = forecast.current;
+  const rainChance = Number(forecast.daily.precipitation_probability_max?.[0] || 0);
+  const uv = Number(forecast.daily.uv_index_max?.[0] || 0);
+  const temp = Number(current.apparent_temperature);
+  const wind = Number(current.wind_speed_10m);
+  const humidity = Number(current.relative_humidity_2m);
+  const aqi = Number(airQuality?.current?.us_aqi || 0);
+  const comfortPenalty = Math.max(0, Math.abs(temp - 20) - 4) * 4;
+  const clamp = (value) => Math.max(0, Math.min(100, Math.round(value)));
+  const activities = [
+    [tr("출퇴근", "Commute"), clamp(100 - rainChance * .55 - wind * .6 - comfortPenalty)],
+    [tr("야외 운동", "Exercise"), clamp(100 - rainChance * .7 - wind * .8 - comfortPenalty - Math.max(0, aqi - 50) * .45)],
+    [tr("세탁", "Laundry"), clamp(100 - rainChance - humidity * .35 - Number(current.cloud_cover) * .25)],
+    [tr("우산 필요", "Umbrella"), clamp(Math.max(rainChance, isCurrentlyRaining(current) ? 100 : 0)), true],
+    [tr("자외선 차단", "Sun protection"), clamp(uv * 11), true],
+  ];
+  elements.activityGrid.replaceChildren();
+  activities.forEach(([label, score, inverse = false]) => {
+    const row = document.createElement("div");
+    row.className = "activity-row";
+    row.dataset.score = score >= 75 ? "high" : score >= 45 ? "mid" : "low";
+    const name = document.createElement("span");
+    const meter = document.createElement("div");
+    const fill = document.createElement("i");
+    const result = document.createElement("strong");
+    name.textContent = label;
+    meter.className = "activity-meter";
+    meter.setAttribute("role", "progressbar");
+    meter.setAttribute("aria-valuemin", "0"); meter.setAttribute("aria-valuemax", "100"); meter.setAttribute("aria-valuenow", String(score));
+    fill.style.width = score + "%";
+    result.textContent = scoreLabel(score, inverse) + " " + score;
+    meter.append(fill); row.append(name, meter, result); elements.activityGrid.append(row);
+  });
+}
+
+function moonPhaseInfo(date = new Date()) {
+  const cycle = 29.53058867;
+  const knownNewMoon = Date.UTC(2000, 0, 6, 18, 14);
+  const age = ((date.getTime() - knownNewMoon) / 86400000 % cycle + cycle) % cycle;
+  const phases = [tr("삭", "New moon"), tr("초승달", "Waxing crescent"), tr("상현달", "First quarter"), tr("차오르는 달", "Waxing gibbous"), tr("보름달", "Full moon"), tr("기우는 달", "Waning gibbous"), tr("하현달", "Last quarter"), tr("그믐달", "Waning crescent")];
+  return phases[Math.round(age / cycle * 8) % 8] + " · " + tr("주기 ", "day ") + age.toFixed(1);
+}
+
+function renderAstronomy(forecast) {
+  const sunrise = new Date(forecast.daily.sunrise[0]);
+  const sunset = new Date(forecast.daily.sunset[0]);
+  const now = new Date();
+  elements.moonPhase.textContent = moonPhaseInfo(now);
+  if (now < sunrise) elements.sunProgress.textContent = tr("일출 전 · ", "Before sunrise · ") + new Intl.DateTimeFormat(state.language === "en" ? "en-US" : "ko-KR", { hour: "2-digit", minute: "2-digit" }).format(sunrise);
+  else if (now > sunset) elements.sunProgress.textContent = tr("일몰 후 · 내일 다시", "After sunset · returns tomorrow");
+  else elements.sunProgress.textContent = Math.round(((now - sunrise) / (sunset - sunrise)) * 100) + "% · " + tr("일몰 ", "sunset ") + new Intl.DateTimeFormat(state.language === "en" ? "en-US" : "ko-KR", { hour: "2-digit", minute: "2-digit" }).format(sunset);
+}
+
+function renderDataTrust(weather, dataMeta = state.dataMeta) {
+  const currentTime = new Date(weather.forecast.current.time).getTime();
+  const ageMinutes = Math.max(0, Math.round((Date.now() - currentTime) / 60000));
+  const cached = dataMeta?.kind === "cache";
+  const available = [true, Boolean(weather.airQuality?.current), Boolean(weather.archive?.daily)].filter(Boolean).length;
+  const high = !cached && ageMinutes <= 120 && available === 3;
+  elements.dataTrustLevel.textContent = high ? tr("높음", "High") : cached ? tr("저장 데이터", "Cached") : tr("보통", "Moderate");
+  elements.dataTrustDetails.replaceChildren();
+  const details = [
+    [cached ? tr("로컬 캐시", "Local cache") : tr("실시간 API", "Live API"), cached ? "warn" : "ok"],
+    [tr("모델 기준 ", "Model age ") + ageMinutes + tr("분 전", " min"), ageMinutes <= 120 ? "ok" : "warn"],
+    [tr("예보 제공", "Forecast available"), "ok"],
+    [weather.airQuality?.current ? tr("대기질 제공", "Air quality available") : tr("대기질 누락", "Air quality missing"), weather.airQuality?.current ? "ok" : "warn"],
+    [weather.archive?.daily ? tr("과거 자료 제공", "History available") : tr("과거 자료 누락", "History missing"), weather.archive?.daily ? "ok" : "warn"],
+  ];
+  details.forEach(([text, tone]) => { const chip = document.createElement("span"); chip.className = "trust-chip " + tone; chip.textContent = text; elements.dataTrustDetails.append(chip); });
+}
+
+function currentAlertRules() {
+  const id = state.selectedPlace?.id;
+  return id && state.alertRules[id] ? state.alertRules[id] : { rain: true, snow: true, heat: false, air: false };
+}
+
+function renderAlertSettings() {
+  if (!state.selectedPlace) return;
+  const rules = currentAlertRules();
+  elements.alertPlaceName.textContent = state.selectedPlace.shortName || state.selectedPlace.name;
+  elements.alertRain.checked = Boolean(rules.rain);
+  elements.alertSnow.checked = Boolean(rules.snow);
+  elements.alertHeat.checked = Boolean(rules.heat);
+  elements.alertAir.checked = Boolean(rules.air);
+}
+
+function saveAlertRules() {
+  if (!state.selectedPlace) return;
+  state.alertRules[state.selectedPlace.id] = { rain: elements.alertRain.checked, snow: elements.alertSnow.checked, heat: elements.alertHeat.checked, air: elements.alertAir.checked };
+  writeStorage("weather-alert-rules", state.alertRules);
+  showToast(tr("현재 위치의 알림 조건을 저장했습니다.", "Alert rules saved for this location."));
+}
 async function getRadarMetadata() {
   if (state.radarMetadata && Date.now() - state.radarMetadata.fetchedAt < 300000) return state.radarMetadata.data;
   const data = await fetchJson(API.radar);
@@ -461,8 +651,8 @@ function atmosphereGridPoints() {
   if (east - west > 300) { west = center.lng - 150; east = center.lng + 150; }
   const normalizeLongitude = (value) => ((value + 540) % 360) - 180;
   const points = [];
-  const rows = 5;
-  const columns = 6;
+  const rows = 6;
+  const columns = 8;
   const latitudeStep = (north - south) / rows;
   const longitudeStep = (east - west) / columns;
   for (let row = 0; row < rows; row += 1) {
@@ -511,6 +701,13 @@ function cloudColor(value) {
 }
 
 function pm25Color(value) {
+  if (state.colorSafe) {
+    if (value <= 15) return "#0072b2";
+    if (value <= 35) return "#56b4e9";
+    if (value <= 55) return "#f0e442";
+    if (value <= 125) return "#e69f00";
+    return "#d55e00";
+  }
   if (value <= 15) return "#2ca58d";
   if (value <= 35) return "#e0b83f";
   if (value <= 55) return "#e67e35";
@@ -519,6 +716,7 @@ function pm25Color(value) {
 }
 
 function windColor(value) {
+  if (state.colorSafe) return value >= 40 ? "#d55e00" : value >= 25 ? "#e69f00" : value >= 12 ? "#0072b2" : "#009e73";
   if (value >= 40) return "#b63737";
   if (value >= 25) return "#d76825";
   if (value >= 12) return "#1677a3";
@@ -527,14 +725,28 @@ function windColor(value) {
 
 function setAtmosphereLegend(layer) {
   const content = {
-    radar: [tr("비구름 강도", "Rain intensity"), tr("파랑 약함 · 노랑/빨강 강함", "Blue light · yellow/red heavy"), "radar"],
-    cloud: [tr("구름량", "Cloud cover"), tr("연속 격자 · 진할수록 구름 많음", "Continuous grid · darker means cloudier"), "cloud"],
-    wind: [tr("바람 흐름", "Wind flow"), tr("화살표 방향 · 아래 배지 풍속", "Arrow direction · speed badge below"), ""],
-    pm25: ["PM2.5", tr("색상 격자 · 초록 좋음 / 보라 매우 나쁨", "Color grid · green good / purple very unhealthy"), "pm25"],
+    radar: [tr("비구름 강도", "Rain intensity"), tr("파랑 약함 · 노랑/빨강 강함", "Blue light · yellow/red heavy"), "radar", [tr("약함", "Light"), tr("보통", "Medium"), tr("강함", "Heavy")]],
+    cloud: [tr("구름량", "Cloud cover"), tr("부드러운 48셀 분포 · 진할수록 구름 많음", "Smoothed 48-cell field · darker means cloudier"), "cloud", ["0%", "30%", "55%", "80%", "100%"]],
+    wind: [tr("바람 흐름", "Wind flow"), tr("화살표 방향 · 아래 배지 풍속", "Arrow direction · speed badge below"), "", []],
+    pm25: ["PM2.5", tr("부드러운 48셀 농도 분포", "Smoothed 48-cell concentration field"), "pm25", ["0", "15", "35", "55", "125+"]],
   }[layer];
-  elements.atmosphereLegend.innerHTML = "<strong></strong><span></span>" + (content[2] ? '<div class="legend-scale ' + content[2] + '"></div>' : "");
-  elements.atmosphereLegend.querySelector("strong").textContent = content[0];
-  elements.atmosphereLegend.querySelector("span").textContent = content[1];
+  elements.atmosphereLegend.replaceChildren();
+  const title = document.createElement("strong");
+  const description = document.createElement("span");
+  title.textContent = content[0];
+  description.textContent = content[1];
+  elements.atmosphereLegend.append(title, description);
+  if (content[2]) {
+    const scale = document.createElement("div");
+    scale.className = "legend-scale " + content[2];
+    elements.atmosphereLegend.append(scale);
+  }
+  if (content[3].length) {
+    const ranges = document.createElement("small");
+    ranges.className = "legend-ranges";
+    content[3].forEach((label) => { const tick = document.createElement("b"); tick.textContent = label; ranges.append(tick); });
+    elements.atmosphereLegend.append(ranges);
+  }
 }
 
 function atmosphereTimeLabel(value) {
@@ -573,7 +785,7 @@ async function renderAtmosphereLayer(layer = state.weatherLayer) {
       if (layer === "cloud") {
         const cloud = Number(item.current.cloud_cover || 0);
         const color = cloudColor(cloud);
-        L.rectangle(point.cellBounds, { color, weight: 1, opacity: .3, fillColor: color, fillOpacity: .38 + cloud * .0048 })
+        L.rectangle(point.cellBounds, { className: "weather-field-cell", color, weight: 0, fillColor: color, fillOpacity: .42 + cloud * .0045 })
           .bindTooltip(tr("구름량 ", "Cloud ") + Math.round(cloud) + "%")
           .addTo(atmosphereDataLayer);
       } else if (layer === "wind") {
@@ -584,7 +796,7 @@ async function renderAtmosphereLayer(layer = state.weatherLayer) {
       } else {
         const pm25 = Number(item.current.pm2_5 || 0);
         const color = pm25Color(pm25);
-        L.rectangle(point.cellBounds, { color, weight: 1, opacity: .36, fillColor: color, fillOpacity: .7 })
+        L.rectangle(point.cellBounds, { className: "weather-field-cell", color, weight: 0, fillColor: color, fillOpacity: .72 })
           .bindTooltip("PM2.5 " + pm25.toFixed(1) + " μg/m³")
           .addTo(atmosphereDataLayer);
       }
@@ -837,7 +1049,8 @@ function renderInsights(forecast) {
   elements.weeklySummary.textContent = `${tr("평균", "Average")} ${compactTemp(avgMin)} / ${compactTemp(avgMax)}, ${tr("누적 강수", "total rain")} ${displayPrecip(rain)}`;
 }
 
-function renderPlace(place, weather) {
+function renderPlace(place, weather, dataMeta = state.dataMeta || { kind: "live", fetchedAt: Date.now() }) {
+  state.dataMeta = dataMeta;
   state.selectedPlace = place;
   state.weather = weather;
   state.airQuality = weather.airQuality || null;
@@ -854,6 +1067,9 @@ function renderPlace(place, weather) {
   renderResults();
   renderCurrent(weather.forecast.current);
   renderAdvice(weather.forecast);
+  renderHazards(weather.forecast, weather.airQuality);
+  renderPrecipTimeline(weather.forecast);
+  renderActivities(weather.forecast, weather.airQuality);
   renderAirQuality(weather.airQuality);
   renderRainRadar(place, weather.forecast.current);
   renderHourly(weather.forecast.hourly);
@@ -876,6 +1092,9 @@ function renderPlace(place, weather) {
     elements.historyRangeStatus.textContent = tr("과거 데이터 연결 대기", "Waiting for history data");
   }
   renderInsights(weather.forecast);
+  renderAstronomy(weather.forecast);
+  renderDataTrust(weather, dataMeta);
+  renderAlertSettings();
   updateSky(weather.forecast.current);
   syncAtmosphereMap(place);
   rememberPlace(place);
@@ -903,6 +1122,10 @@ function renderError(message) {
   renderDataState(elements.weeklyChart, message);
   renderDataState(elements.historyChart, message);
   elements.rainRadarSection.hidden = true;
+  elements.hazardPanel.hidden = true;
+  renderDataState(elements.precipTimeline, tr("강수 타임라인을 불러오지 못했습니다.", "Precipitation timeline unavailable."), false);
+  renderDataState(elements.activityGrid, tr("활동 적합도를 계산할 수 없습니다.", "Activity scores unavailable."), false);
+  renderDataState(elements.dataTrustDetails, tr("데이터 연결을 확인하고 있습니다.", "Checking data connection."), false);
   elements.refreshStatus.textContent = "연결 대기 · 10분마다 자동 재시도";
   renderAdviceFallback();
 }
@@ -917,12 +1140,12 @@ async function loadPlace(place) {
   try {
     const weather = await fetchWeather(place);
     state.lastRefreshAt = Date.now();
-    renderPlace(place, weather);
+    renderPlace(place, weather, { kind: "live", fetchedAt: Date.now() });
     cacheWeather(place, weather);
   } catch (error) {
     const cached = loadCachedWeather(place);
     if (cached) {
-      renderPlace(place, cached.weather);
+      renderPlace(place, cached.weather, { kind: "cache", fetchedAt: cached.savedAt });
       const saved = new Intl.DateTimeFormat(state.language === "en" ? "en-US" : "ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(cached.savedAt));
       elements.refreshStatus.textContent = saved + tr(" 저장 · 연결되면 자동 갱신", " saved · refreshes when online");
       showToast("네트워크 문제로 마지막 저장 날씨를 표시합니다.");
@@ -982,7 +1205,7 @@ async function refreshSelectedWeather(manual = false) {
       : await fetchWeather(place);
     if (state.selectedPlace?.id !== place.id) return;
     state.lastRefreshAt = Date.now();
-    renderPlace(place, weather);
+    renderPlace(place, weather, { kind: "live", fetchedAt: Date.now() });
     cacheWeather(place, weather);
     if (state.activeTab === "layers") renderAtmosphereLayer(state.weatherLayer);
   } catch (error) {
@@ -1238,14 +1461,25 @@ function nextRainWindow(forecast) {
 }
 
 function scheduleRainNotification(forecast) {
+  if (!state.notificationEnabled || !("Notification" in window) || Notification.permission !== "granted" || !state.selectedPlace) return;
+  const rules = currentAlertRules();
   const rainTime = nextRainWindow(forecast);
-  if (!rainTime || !state.notificationEnabled || Notification.permission !== "granted") return;
-  const key = state.selectedPlace.id + ":" + rainTime;
+  const { hourly, start, end } = forecastWindow(forecast, 12);
+  const codes = hourly.weather_code.slice(start, end).map(Number);
+  const messages = [];
+  if (rules.rain && rainTime) {
+    const label = new Intl.DateTimeFormat(state.language === "en" ? "en-US" : "ko-KR", { hour: "2-digit", minute: "2-digit" }).format(new Date(rainTime));
+    messages.push(tr(label + " 비 가능성", "Rain possible near " + label));
+  }
+  if (rules.snow && codes.some((code) => code >= 71 && code <= 86)) messages.push(tr("12시간 이내 눈·결빙 가능성", "Snow or ice possible within 12 hours"));
+  if (rules.heat && Number(forecast.daily.temperature_2m_max?.[0]) >= 33) messages.push(tr("오늘 폭염 위험", "Heat risk today"));
+  if (rules.air && Number(state.airQuality?.current?.us_aqi) >= 151) messages.push(tr("대기질 건강 주의", "Unhealthy air quality"));
+  if (!messages.length) return;
+  const key = state.selectedPlace.id + ":" + toIsoDate(new Date()) + ":" + messages.join("|");
   if (state.lastRainNotice === key) return;
   state.lastRainNotice = key;
   writeStorage("weather-last-rain-notice", key);
-  const label = new Intl.DateTimeFormat(state.language === "en" ? "en-US" : "ko-KR", { hour: "2-digit", minute: "2-digit" }).format(new Date(rainTime));
-  new Notification("World Weather Atlas", { body: (state.selectedPlace.shortName || state.selectedPlace.name) + " · " + label + " 비 가능성이 있습니다. 우산을 챙기세요.", icon: "assets/advice-rain.png" });
+  new Notification("World Weather Atlas", { body: (state.selectedPlace.shortName || state.selectedPlace.name) + " · " + messages.join(" · "), icon: "assets/advice-rain.png" });
 }
 
 function savePreferences() {
@@ -1253,7 +1487,9 @@ function savePreferences() {
   state.windUnit = elements.windUnitSelect.value;
   state.precipUnit = elements.precipUnitSelect.value;
   state.pressureUnit = elements.pressureUnitSelect.value;
-  writeStorage("weather-preferences", { language: state.language, windUnit: state.windUnit, precipUnit: state.precipUnit, pressureUnit: state.pressureUnit, unit: state.unit });
+  state.colorSafe = elements.colorSafeToggle.checked;
+  document.documentElement.dataset.palette = state.colorSafe ? "accessible" : "default";
+  writeStorage("weather-preferences", { language: state.language, windUnit: state.windUnit, precipUnit: state.precipUnit, pressureUnit: state.pressureUnit, unit: state.unit, colorSafe: state.colorSafe });
   document.documentElement.lang = state.language;
   applyLanguage();
   if (state.selectedPlace && state.weather) renderPlace(state.selectedPlace, state.weather);
@@ -1273,13 +1509,15 @@ function applyLanguage() {
     ".advice-label": ["오늘의 준비", "TODAY'S CHECK"], ".air-quality-panel .panel-header h2": ["대기질과 건강", "Air quality & health"],
     "#tab-layers .panel-header h2": ["실시간 기상 지도", "Live weather map"], "#tab-hourly .panel-header h2": ["48시간 흐름", "48-hour outlook"], "#tab-weekly .panel-header h2": ["앞으로 7일", "Next 7 days"],
     "#tab-history .panel-header h2": ["과거 날씨 조회", "Weather history"], "#tab-compare .panel-header h2": ["도시 날씨 비교", "City comparison"],
+    ".precip-panel .panel-header h2": ["앞으로 24시간 강수", "Next 24 hours precipitation"], ".activity-panel .panel-header h2": ["오늘의 활동 적합도", "Today activity scores"],
+    ".trust-panel .panel-header h2": ["데이터 신뢰도", "Data confidence"], ".alert-config-panel .panel-header h2": ["위치별 날씨 알림", "Location weather alerts"],
   };
   Object.entries(labels).forEach(([selector, pair]) => setText(selector, pair[0], pair[1]));
   setSeries(".layer-button", ["비구름", "구름량", "바람", "미세먼지 PM2.5"], ["Rain radar", "Clouds", "Wind", "Fine dust PM2.5"]);
   setSeries(".location-meta dt", ["위도", "경도", "시간대", "고도"], ["Latitude", "Longitude", "Timezone", "Elevation"]);
   setSeries(".metric-grid dt", ["체감", "습도", "강수", "풍속", "기압", "구름"], ["Feels like", "Humidity", "Rain", "Wind", "Pressure", "Clouds"]);
   setSeries(".air-quality-grid dt", ["통합 AQI", "초미세먼지 PM2.5", "미세먼지 PM10", "오존 O₃", "이산화질소 NO₂"], ["Overall AQI", "Fine dust PM2.5", "Dust PM10", "Ozone O₃", "Nitrogen dioxide NO₂"]);
-  setSeries(".insight-list dt", ["일출", "일몰", "낮 길이", "최대 자외선", "가시거리", "주간 요약"], ["Sunrise", "Sunset", "Daylight", "Max UV", "Visibility", "Weekly summary"]);
+  setSeries(".insight-list dt", ["일출", "일몰", "낮 길이", "최대 자외선", "가시거리", "달 위상", "해 진행도", "주간 요약"], ["Sunrise", "Sunset", "Daylight", "Max UV", "Visibility", "Moon phase", "Sun progress", "Weekly summary"]);
   setSeries("#tab-location .panel-header h2", ["즐겨찾는 도시", "최근 위치", "검색 후보", "지도에서 선택"], ["Favorite cities", "Recent places", "Search results", "Choose on map"]);
   setLabel("#settingsPanel label:nth-child(1)", "언어", "Language");
   setLabel("#settingsPanel label:nth-child(2)", "풍속", "Wind");
@@ -1297,6 +1535,9 @@ function restorePreferences() {
   state.windUnit = ["kmh", "ms", "mph"].includes(prefs.windUnit) ? prefs.windUnit : "kmh";
   state.precipUnit = prefs.precipUnit === "inch" ? "inch" : "mm";
   state.pressureUnit = prefs.pressureUnit === "inhg" ? "inhg" : "hpa";
+  state.colorSafe = Boolean(prefs.colorSafe);
+  state.alertRules = readStorage("weather-alert-rules", {});
+  document.documentElement.dataset.palette = state.colorSafe ? "accessible" : "default";
   state.favorites = readStorage("weather-favorites", []);
   state.recentPlaces = readStorage("weather-recent", []);
   state.compareIds = readStorage("weather-compare", []).filter((id) => state.favorites.some((place) => place.id === id)).slice(0, 3);
@@ -1306,6 +1547,7 @@ function restorePreferences() {
   elements.windUnitSelect.value = state.windUnit;
   elements.precipUnitSelect.value = state.precipUnit;
   elements.pressureUnitSelect.value = state.pressureUnit;
+  elements.colorSafeToggle.checked = state.colorSafe;
   elements.unitButton.textContent = state.unit === "c" ? "°F 보기" : "°C 보기";
   elements.notifyButton.setAttribute("aria-pressed", String(state.notificationEnabled));
   document.documentElement.lang = state.language;
@@ -1318,11 +1560,11 @@ async function toggleNotifications() {
     const permission = await Notification.requestPermission();
     if (permission !== "granted") { showToast("브라우저 알림 권한이 필요합니다."); return; }
     state.notificationEnabled = true;
-    showToast("12시간 이내 강수 가능성을 알려드립니다.");
+    showToast(tr("선택한 위치별 날씨 조건을 알려드립니다.", "Location alert rules are enabled."));
     if (state.weather) scheduleRainNotification(state.weather.forecast);
   } else {
     state.notificationEnabled = false;
-    showToast("강수 알림을 껐습니다.");
+    showToast(tr("위치별 날씨 알림을 껐습니다.", "Weather alerts are off."));
   }
   writeStorage("weather-notifications", state.notificationEnabled);
   elements.notifyButton.setAttribute("aria-pressed", String(state.notificationEnabled));
@@ -1336,7 +1578,7 @@ function initializeConnectionState() {
 }
 
 function registerPwa() {
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("service-worker.js?v=20260715-15").catch(() => {});
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("service-worker.js?v=20260715-16").catch(() => {});
   let installPrompt;
   addEventListener("beforeinstallprompt", (event) => { event.preventDefault(); installPrompt = event; elements.installButton.hidden = false; });
   elements.installButton.addEventListener("click", async () => {
@@ -1403,7 +1645,7 @@ elements.unitButton.addEventListener("click", () => {
   state.unit = state.unit === "c" ? "f" : "c";
   elements.unitButton.textContent = state.unit === "c" ? tr("°F 보기", "Show °F") : tr("°C 보기", "Show °C");
   elements.unitButton.setAttribute("aria-pressed", state.unit === "f");
-  writeStorage("weather-preferences", { language: state.language, windUnit: state.windUnit, precipUnit: state.precipUnit, pressureUnit: state.pressureUnit, unit: state.unit });
+  writeStorage("weather-preferences", { language: state.language, windUnit: state.windUnit, precipUnit: state.precipUnit, pressureUnit: state.pressureUnit, unit: state.unit, colorSafe: state.colorSafe });
   if (state.selectedPlace && state.weather) renderPlace(state.selectedPlace, state.weather);
 });
 
@@ -1412,6 +1654,8 @@ elements.resetButton.addEventListener("click", resetApplication);
 elements.layerButtons.forEach((button) => button.addEventListener("click", () => renderAtmosphereLayer(button.dataset.weatherLayer)));
 elements.layerRefreshButton.addEventListener("click", () => renderAtmosphereLayer(state.weatherLayer));
 elements.notifyButton.addEventListener("click", toggleNotifications);
+elements.saveAlertSettings.addEventListener("click", saveAlertRules);
+elements.colorSafeToggle.addEventListener("change", savePreferences);
 elements.settingsButton.addEventListener("click", () => { elements.settingsPanel.hidden = !elements.settingsPanel.hidden; });
 [elements.languageSelect, elements.windUnitSelect, elements.precipUnitSelect, elements.pressureUnitSelect].forEach((select) => select.addEventListener("change", savePreferences));
 elements.refreshButton.addEventListener("click", () => refreshSelectedWeather(true));
@@ -1425,6 +1669,7 @@ elements.themeButton.addEventListener("click", () => {
   const nextTheme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
   applyTheme(nextTheme, true);
 });
+initializeTabAccessibility();
 elements.tabs.forEach((button) => button.addEventListener("click", () => switchTab(button.dataset.tab)));
 
 elements.mapApplyButton.addEventListener("click", () => {

@@ -4,11 +4,11 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#087f8c">
-    <link rel="manifest" href="manifest.webmanifest?v=20260715-15">
+    <link rel="manifest" href="manifest.webmanifest?v=20260715-16">
     <title>World Weather Atlas</title>
     <script>try{document.documentElement.dataset.theme=localStorage.getItem("weather-theme")||((matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light")}catch(e){}</script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
-    <link rel="stylesheet" href="styles.css?v=20260715-15">
+    <link rel="stylesheet" href="styles.css?v=20260715-16">
   </head>
   <body>
     <div id="offlineBanner" class="offline-banner" hidden>오프라인 상태입니다. 마지막으로 저장한 날씨를 표시합니다.</div>
@@ -42,11 +42,12 @@
             <label>풍속<select id="windUnitSelect"><option value="kmh">km/h</option><option value="ms">m/s</option><option value="mph">mph</option></select></label>
             <label>강수<select id="precipUnitSelect"><option value="mm">mm</option><option value="inch">inch</option></select></label>
             <label>기압<select id="pressureUnitSelect"><option value="hpa">hPa</option><option value="inhg">inHg</option></select></label>
+            <label class="toggle-setting"><input id="colorSafeToggle" type="checkbox"> 색각 친화 팔레트</label>
           </div>
         </div>
       </section>
 
-      <nav class="tabbar" aria-label="날씨 화면 탭">
+      <nav class="tabbar" role="tablist" aria-label="날씨 화면 탭">
         <button class="tab-button active" type="button" data-tab="overview">요약</button>
         <button class="tab-button" type="button" data-tab="location">위치 선택</button>
         <button class="tab-button" type="button" data-tab="layers">기상 지도</button>
@@ -70,6 +71,9 @@
       </section>
 
       <section class="tab-panel active" id="tab-overview">
+        <section id="hazardPanel" class="hazard-panel" role="status" aria-live="polite" hidden>
+          <div><span>예보 기반 위험 신호</span><strong id="hazardTitle">주의할 날씨가 있습니다</strong></div><div id="hazardList" class="hazard-list"></div>
+        </section>
         <section class="hero-weather">
           <div class="current-main">
             <span id="weatherIcon" class="weather-icon" aria-hidden="true">--</span>
@@ -83,6 +87,10 @@
         <section class="advice-panel" aria-live="polite">
           <div id="adviceVisual" class="advice-visual" data-kind="sun" role="img" aria-label="날씨 생활 조언 이미지"></div>
           <div class="advice-copy"><p class="advice-label">오늘의 준비</p><h2 id="adviceTitle">날씨 정보를 준비하고 있어요</h2><p id="adviceText">연결되는 동안 우산과 자외선 차단제를 가볍게 챙겨두세요.</p><div id="adviceMeta" class="advice-meta"><span>자동 갱신</span><span>전세계 날씨</span></div></div>
+        </section>
+        <section class="overview-data-grid">
+          <article class="panel precip-panel"><div class="panel-header"><h2>앞으로 24시간 강수</h2><span id="precipTimelineSummary">시간별 강수 가능성</span></div><div id="precipTimeline" class="precip-timeline" role="img" aria-label="앞으로 24시간 강수 가능성"></div></article>
+          <article class="panel activity-panel"><div class="panel-header"><h2>오늘의 활동 적합도</h2><span>날씨·대기질 종합</span></div><div id="activityGrid" class="activity-grid"></div></article>
         </section>
         <section id="rainRadarSection" class="panel rain-radar-panel" hidden>
           <div class="panel-header"><h2>현재 비구름</h2><span id="radarTime">레이더 불러오는 중</span></div>
@@ -102,9 +110,14 @@
           <div class="panel-header"><h2>해와 생활 지표</h2><span>오늘 기준</span></div>
           <dl class="insight-list">
             <div><dt>일출</dt><dd id="sunrise">--</dd></div><div><dt>일몰</dt><dd id="sunset">--</dd></div><div><dt>낮 길이</dt><dd id="daylight">--</dd></div>
-            <div><dt>최대 자외선</dt><dd id="uvIndex">--</dd></div><div><dt>가시거리</dt><dd id="visibility">--</dd></div><div><dt>주간 요약</dt><dd id="weeklySummary">--</dd></div>
+            <div><dt>최대 자외선</dt><dd id="uvIndex">--</dd></div><div><dt>가시거리</dt><dd id="visibility">--</dd></div><div><dt>달 위상</dt><dd id="moonPhase">--</dd></div>
+            <div><dt>해 진행도</dt><dd id="sunProgress">--</dd></div><div><dt>주간 요약</dt><dd id="weeklySummary">--</dd></div>
           </dl>
         </article>
+        <section class="overview-data-grid service-meta-grid">
+          <article class="panel trust-panel"><div class="panel-header"><h2>데이터 신뢰도</h2><span id="dataTrustLevel">확인 중</span></div><div id="dataTrustDetails" class="trust-details"></div></article>
+          <article class="panel alert-config-panel"><div class="panel-header"><h2>위치별 날씨 알림</h2><span id="alertPlaceName">현재 위치</span></div><div class="alert-options"><label><input id="alertRain" type="checkbox"> 비</label><label><input id="alertSnow" type="checkbox"> 눈</label><label><input id="alertHeat" type="checkbox"> 폭염</label><label><input id="alertAir" type="checkbox"> 미세먼지</label><button id="saveAlertSettings" type="button">알림 조건 저장</button></div><p class="panel-note">앱이 열려 있고 날씨가 갱신될 때 조건을 확인합니다.</p></article>
+        </section>
       </section>
 
       <section class="tab-panel" id="tab-location">
@@ -182,6 +195,6 @@
     <template id="hourTemplate"><div class="hour-row"><div class="hour-time"><strong class="hour-label"></strong><span class="hour-desc"></span></div><div class="hour-metrics"><span class="hour-temp"></span><span class="hour-rain"></span><span class="hour-wind"></span><span class="hour-uv"></span></div></div></template>
     <template id="dayTemplate"><div class="day-row"><div class="day-label"><strong class="day-date"></strong><span class="day-desc"></span></div><div class="day-values"><span class="temp-range"></span><span class="rain"></span><span class="sun"></span></div></div></template>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-    <script src="script.js?v=20260715-15"></script>
+    <script src="script.js?v=20260715-16"></script>
   </body>
 </html>
