@@ -529,15 +529,15 @@ html[data-theme="dark"] .leaflet-control-attribution a { color: #80d4c5; }
 .refresh-status { display: block; margin: 7px 0 0 16px; color: var(--accent-strong); font-size: 0.74rem; font-weight: 800; }
 
 .advice-panel { display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: 220px; margin-bottom: 18px; overflow: hidden; border: 1px solid #e2c875; border-radius: 8px; background: #fff4c9; box-shadow: 0 14px 32px rgba(87, 68, 20, 0.12); }
-.advice-visual { position: relative; min-height: 220px; background-color: #e8dcae; background-image: url("assets/advice-sun.png?v=20260715-8"); background-position: center; background-repeat: no-repeat; background-size: cover; }
+.advice-visual { position: relative; min-height: 220px; background-color: #e8dcae; background-image: url("assets/advice-sun.png?v=20260715-10"); background-position: center; background-repeat: no-repeat; background-size: cover; }
 .advice-visual::after { position: absolute; right: 12px; bottom: 12px; display: grid; width: 38px; height: 38px; place-items: center; border: 1px solid rgba(255, 255, 255, 0.65); border-radius: 50%; background: rgba(22, 36, 31, 0.72); color: #fff; content: "☀"; font-size: 1.2rem; box-shadow: 0 6px 16px rgba(18, 36, 30, 0.22); }
 .advice-visual[data-kind="rain"]::after { content: "☂"; }
 .advice-visual[data-kind="cold"]::after { content: "❄"; }
 .advice-visual[data-kind="heat"]::after { content: "♨"; }
-.advice-visual[data-kind="rain"] { background-image: url("assets/advice-rain.png?v=20260715-8"); }
-.advice-visual[data-kind="sun"] { background-image: url("assets/advice-sun.png?v=20260715-8"); }
-.advice-visual[data-kind="cold"] { background-image: url("assets/advice-cold.png?v=20260715-8"); }
-.advice-visual[data-kind="heat"] { background-image: url("assets/advice-heat.png?v=20260715-8"); }
+.advice-visual[data-kind="rain"] { background-image: url("assets/advice-rain.png?v=20260715-10"); }
+.advice-visual[data-kind="sun"] { background-image: url("assets/advice-sun.png?v=20260715-10"); }
+.advice-visual[data-kind="cold"] { background-image: url("assets/advice-cold.png?v=20260715-10"); }
+.advice-visual[data-kind="heat"] { background-image: url("assets/advice-heat.png?v=20260715-10"); }
 .advice-copy { align-self: center; padding: 26px 30px; }
 .advice-label { margin-bottom: 8px; color: #a9473d; font-size: 0.76rem; font-weight: 900; text-transform: uppercase; }
 .advice-copy h2 { color: #28302d; font-size: 1.55rem; }
@@ -669,4 +669,42 @@ html[data-theme="dark"] .favorite-button[aria-pressed="true"] { border-color: #a
 @media (max-width: 480px) {
   .quick-actions > #geoButton, .quick-actions > #unitButton, .favorite-button { flex-basis: calc(50% - 4px); }
   .favorite-button { order: 3; flex-basis: 100%; }
+}
+/* Reset control and live atmospheric layers */
+.reset-button { flex: 0 1 86px; border-color: #d9b8b2; color: #99473d; }
+.reset-button:hover { border-color: #a9473d; background: #a9473d; color: #fff; }
+.atmosphere-panel { position: relative; }
+.layer-toolbar { display: flex; align-items: center; gap: 7px; padding: 12px 14px; overflow-x: auto; border-bottom: 1px solid var(--line); background: var(--panel); }
+.layer-button, .layer-refresh { flex: 0 0 auto; min-height: 40px; border: 1px solid var(--line); background: var(--panel); color: var(--muted); }
+.layer-button { padding: 0 15px; }
+.layer-button.active, .layer-button:hover { border-color: var(--accent); background: var(--accent); color: #fff; }
+.layer-refresh { display: grid; width: 42px; padding: 0; place-items: center; font-size: 1.15rem; }
+.layer-refresh.loading { animation: refresh-spin 800ms linear infinite; }
+.atmosphere-map-wrap { position: relative; min-height: 560px; }
+.atmosphere-map { height: 560px; background: #cddadb; z-index: 0; }
+.atmosphere-legend { position: absolute; right: 14px; bottom: 28px; z-index: 600; min-width: 170px; max-width: min(300px, calc(100% - 28px)); padding: 11px 12px; border: 1px solid rgba(29, 49, 45, .25); border-radius: 7px; background: rgba(255, 255, 255, .92); color: #24342f; box-shadow: 0 10px 24px rgba(20, 40, 37, .2); font-size: .72rem; font-weight: 800; }
+.atmosphere-legend strong, .atmosphere-legend span { display: block; }
+.atmosphere-legend span { margin-top: 4px; color: #596a64; font-weight: 700; }
+.legend-scale { height: 9px; margin-top: 8px; border-radius: 3px; }
+.legend-scale.radar { background: linear-gradient(90deg, #81d4fa, #1e88e5, #fdd835, #e53935); }
+.legend-scale.cloud { background: linear-gradient(90deg, #dff3f2, #9dbabf, #43545d); }
+.legend-scale.pm25 { background: linear-gradient(90deg, #2ca58d, #f0c74b, #e67e35, #c94747, #754a99); }
+.wind-marker { border: 0; background: transparent; }
+.wind-vector { display: grid; width: 54px; height: 42px; place-items: center; color: #086d7a; filter: drop-shadow(0 1px 2px rgba(255,255,255,.9)); transform: rotate(var(--wind-direction)); }
+.wind-vector b { display: block; font-size: calc(17px + min(var(--wind-speed), 28) * .35px); line-height: 1; animation: wind-pulse 1.4s ease-in-out infinite; }
+.wind-vector small { position: absolute; top: 31px; padding: 1px 4px; border-radius: 3px; background: rgba(255,255,255,.86); color: #263c37; font-size: 9px; transform: rotate(calc(var(--wind-direction) * -1)); white-space: nowrap; }
+@keyframes wind-pulse { 50% { transform: translateX(5px); opacity: .68; } }
+.atmosphere-credit { padding-top: 10px; }
+html[data-theme="dark"] .reset-button { border-color: #704841; color: #ef9d90; }
+html[data-theme="dark"] .layer-toolbar, html[data-theme="dark"] .layer-button, html[data-theme="dark"] .layer-refresh { background: #121917; }
+html[data-theme="dark"] .atmosphere-legend { border-color: #4a5b55; background: rgba(18, 25, 23, .94); color: #edf2ef; }
+html[data-theme="dark"] .atmosphere-legend span { color: #b8c5c0; }
+@media (max-width: 820px) {
+  .reset-button { flex: 1 1 92px; }
+  .atmosphere-map-wrap, .atmosphere-map { min-height: 480px; height: 480px; }
+}
+@media (max-width: 480px) {
+  .reset-button { flex-basis: calc(50% - 4px); }
+  .atmosphere-map-wrap, .atmosphere-map { min-height: 420px; height: 420px; }
+  .atmosphere-legend { bottom: 22px; }
 }

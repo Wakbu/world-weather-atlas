@@ -6,16 +6,22 @@ const API = {
   air: "https://air-quality-api.open-meteo.com/v1/air-quality",
 };
 
-const state = { loading: false, unit: "c", windUnit: "kmh", precipUnit: "mm", pressureUnit: "hpa", language: "ko", places: [], selectedPlace: null, weather: null, airQuality: null, favorites: [], recentPlaces: [], compareIds: [], mapPoint: { latitude: 37.5665, longitude: 126.9780 }, lastRefreshAt: 0, refreshTimer: null, radarMetadata: null, activeTab: "overview", notificationEnabled: false, lastRainNotice: "" };
+const state = { loading: false, unit: "c", windUnit: "kmh", precipUnit: "mm", pressureUnit: "hpa", language: "ko", places: [], selectedPlace: null, weather: null, airQuality: null, favorites: [], recentPlaces: [], compareIds: [], mapPoint: { latitude: 37.5665, longitude: 126.9780 }, lastRefreshAt: 0, refreshTimer: null, radarMetadata: null, activeTab: "overview", notificationEnabled: false, lastRainNotice: "", weatherLayer: "radar" };
 let weatherMap;
 let mapMarker;
 let rainRadarMap;
 let rainRadarLayer;
 let rainRadarMarker;
+let atmosphereMap;
+let atmosphereDataLayer;
+let atmosphereRadarLayer;
+let atmosphereMarker;
+let atmosphereMoveTimer;
+let atmosphereLoadId = 0;
 const $ = (selector) => document.querySelector(selector);
 
 const elements = {
-  form: $("#searchForm"), input: $("#cityInput"), geoButton: $("#geoButton"), unitButton: $("#unitButton"), favoriteButton: $("#favoriteButton"), favoriteButtonLabel: $("#favoriteButtonLabel"), favoriteQuickList: $("#favoriteQuickList"), favoriteHelp: $("#favoriteHelp"), notifyButton: $("#notifyButton"), settingsButton: $("#settingsButton"), settingsPanel: $("#settingsPanel"), installButton: $("#installButton"), languageSelect: $("#languageSelect"), windUnitSelect: $("#windUnitSelect"), precipUnitSelect: $("#precipUnitSelect"), pressureUnitSelect: $("#pressureUnitSelect"), refreshButton: $("#refreshButton"), refreshStatus: $("#refreshStatus"), themeButton: $("#themeButton"), themeIcon: $("#themeIcon"), offlineBanner: $("#offlineBanner"), toast: $("#toast"),
+  form: $("#searchForm"), input: $("#cityInput"), geoButton: $("#geoButton"), unitButton: $("#unitButton"), favoriteButton: $("#favoriteButton"), favoriteButtonLabel: $("#favoriteButtonLabel"), favoriteQuickList: $("#favoriteQuickList"), favoriteHelp: $("#favoriteHelp"), resetButton: $("#resetButton"), notifyButton: $("#notifyButton"), settingsButton: $("#settingsButton"), settingsPanel: $("#settingsPanel"), installButton: $("#installButton"), languageSelect: $("#languageSelect"), windUnitSelect: $("#windUnitSelect"), precipUnitSelect: $("#precipUnitSelect"), pressureUnitSelect: $("#pressureUnitSelect"), refreshButton: $("#refreshButton"), refreshStatus: $("#refreshStatus"), themeButton: $("#themeButton"), themeIcon: $("#themeIcon"), offlineBanner: $("#offlineBanner"), toast: $("#toast"),
   resultStatus: $("#resultStatus"), resultList: $("#resultList"), placeName: $("#placeName"), dateRange: $("#dateRange"),
   latitude: $("#latitude"), longitude: $("#longitude"), timezone: $("#timezone"), elevation: $("#elevation"),
   currentSummary: $("#currentSummary"), currentTemp: $("#currentTemp"), currentTime: $("#currentTime"), weatherIcon: $("#weatherIcon"),
@@ -24,6 +30,7 @@ const elements = {
   sunrise: $("#sunrise"), sunset: $("#sunset"), daylight: $("#daylight"), uvIndex: $("#uvIndex"), visibility: $("#visibility"), weeklySummary: $("#weeklySummary"),
   adviceVisual: $("#adviceVisual"), adviceTitle: $("#adviceTitle"), adviceText: $("#adviceText"), adviceMeta: $("#adviceMeta"), rainRadarSection: $("#rainRadarSection"), rainRadarMap: $("#rainRadarMap"), radarTime: $("#radarTime"), airQualityStatus: $("#airQualityStatus"), airQualityIndex: $("#airQualityIndex"), airQualityLevel: $("#airQualityLevel"), pm25: $("#pm25"), pm10: $("#pm10"), ozone: $("#ozone"), nitrogenDioxide: $("#nitrogenDioxide"),
   mapCoordinates: $("#mapCoordinates"), mapPlaceLabel: $("#mapPlaceLabel"), mapApplyButton: $("#mapApplyButton"), presetList: $("#presetList"), favoriteList: $("#favoriteList"), recentList: $("#recentList"), compareSelector: $("#compareSelector"), compareGrid: $("#compareGrid"), compareStatus: $("#compareStatus"), weeklyChart: $("#weeklyChart"), historyChart: $("#historyChart"), historySummary: $("#historySummary"), historyRangeForm: $("#historyRangeForm"), historyStart: $("#historyStart"), historyEnd: $("#historyEnd"), historyRangeStatus: $("#historyRangeStatus"),
+  atmosphereMap: $("#atmosphereMap"), atmosphereStatus: $("#atmosphereStatus"), atmosphereLegend: $("#atmosphereLegend"), layerRefreshButton: $("#layerRefreshButton"), layerButtons: document.querySelectorAll("[data-weather-layer]"),
   tabs: document.querySelectorAll(".tab-button"), panels: document.querySelectorAll(".tab-panel"),
   resultTemplate: $("#resultTemplate"), hourTemplate: $("#hourTemplate"), dayTemplate: $("#dayTemplate"),
 };
@@ -239,6 +246,11 @@ function switchTab(tabName) {
   elements.panels.forEach((panel) => panel.classList.toggle("active", panel.id === `tab-${tabName}`));
   if (tabName === "location" && weatherMap) setTimeout(() => weatherMap.invalidateSize(), 0);
   if (tabName === "overview" && rainRadarMap) setTimeout(() => rainRadarMap.invalidateSize(), 0);
+  if (tabName === "layers") {
+    initAtmosphereMap();
+    setTimeout(() => atmosphereMap?.invalidateSize(), 0);
+    renderAtmosphereLayer(state.weatherLayer);
+  }
   if (tabName === "compare") renderCompare();
   updateUrlState();
 }
@@ -413,6 +425,161 @@ async function renderRainRadar(place, current) {
     elements.radarTime.textContent = tr("레이더 데이터를 불러오지 못했습니다.", "Radar data is unavailable.");
   }
 }
+function initAtmosphereMap() {
+  if (atmosphereMap || !window.L) {
+    if (!window.L) elements.atmosphereStatus.textContent = tr("지도를 불러오지 못했습니다.", "The map could not be loaded.");
+    return;
+  }
+  const place = state.selectedPlace || { latitude: 37.5665, longitude: 126.978 };
+  atmosphereMap = L.map("atmosphereMap", { worldCopyJump: true, scrollWheelZoom: false }).setView([place.latitude, place.longitude], 5);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 18,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  }).addTo(atmosphereMap);
+  atmosphereDataLayer = L.layerGroup().addTo(atmosphereMap);
+  atmosphereMarker = L.marker([place.latitude, place.longitude]).addTo(atmosphereMap);
+  atmosphereMap.on("moveend", () => {
+    if (state.activeTab !== "layers" || state.weatherLayer === "radar") return;
+    clearTimeout(atmosphereMoveTimer);
+    atmosphereMoveTimer = setTimeout(() => renderAtmosphereLayer(state.weatherLayer), 500);
+  });
+}
+
+function syncAtmosphereMap(place) {
+  if (!atmosphereMap) return;
+  atmosphereMarker?.setLatLng([place.latitude, place.longitude]);
+  if (state.activeTab === "layers") atmosphereMap.setView([place.latitude, place.longitude], Math.max(5, atmosphereMap.getZoom()));
+}
+
+function atmosphereGridPoints() {
+  const bounds = atmosphereMap.getBounds();
+  const center = atmosphereMap.getCenter();
+  const south = Math.max(-80, bounds.getSouth());
+  const north = Math.min(80, bounds.getNorth());
+  let west = bounds.getWest();
+  let east = bounds.getEast();
+  if (east - west > 300) { west = center.lng - 150; east = center.lng + 150; }
+  const normalizeLongitude = (value) => ((value + 540) % 360) - 180;
+  const points = [];
+  const rows = 4;
+  const columns = 5;
+  for (let row = 0; row < rows; row += 1) {
+    const latitude = south + ((north - south) * row) / Math.max(1, rows - 1);
+    for (let column = 0; column < columns; column += 1) {
+      const longitude = normalizeLongitude(west + ((east - west) * column) / Math.max(1, columns - 1));
+      points.push({ latitude, longitude });
+    }
+  }
+  return points;
+}
+
+async function fetchAtmosphereWeather(points) {
+  const data = await fetchJson(buildUrl(API.forecast, {
+    latitude: points.map((point) => point.latitude),
+    longitude: points.map((point) => point.longitude),
+    timezone: "auto",
+    current: ["cloud_cover", "wind_speed_10m", "wind_direction_10m"],
+    forecast_days: 1,
+  }));
+  return Array.isArray(data) ? data : [data];
+}
+
+async function fetchAtmosphereAir(points) {
+  const data = await fetchJson(buildUrl(API.air, {
+    latitude: points.map((point) => point.latitude),
+    longitude: points.map((point) => point.longitude),
+    timezone: "auto",
+    current: ["pm2_5"],
+    forecast_days: 1,
+  }));
+  return Array.isArray(data) ? data : [data];
+}
+
+function cloudColor(value) {
+  if (value >= 80) return "#43545d";
+  if (value >= 55) return "#738b92";
+  if (value >= 30) return "#a8c0c3";
+  return "#d8eeee";
+}
+
+function pm25Color(value) {
+  if (value <= 15) return "#2ca58d";
+  if (value <= 35) return "#e0b83f";
+  if (value <= 55) return "#e67e35";
+  if (value <= 125) return "#c94747";
+  return "#754a99";
+}
+
+function setAtmosphereLegend(layer) {
+  const content = {
+    radar: [tr("비구름 강도", "Rain intensity"), tr("파랑 약함 · 노랑/빨강 강함", "Blue light · yellow/red heavy"), "radar"],
+    cloud: [tr("구름량", "Cloud cover"), tr("밝음 적음 · 진함 많음", "Light low · dark high"), "cloud"],
+    wind: [tr("바람 흐름", "Wind flow"), tr("화살표 방향 · 숫자 풍속", "Arrow direction · speed label"), ""],
+    pm25: ["PM2.5", tr("초록 좋음 · 보라 매우 나쁨", "Green good · purple very unhealthy"), "pm25"],
+  }[layer];
+  elements.atmosphereLegend.innerHTML = "<strong></strong><span></span>" + (content[2] ? '<div class="legend-scale ' + content[2] + '"></div>' : "");
+  elements.atmosphereLegend.querySelector("strong").textContent = content[0];
+  elements.atmosphereLegend.querySelector("span").textContent = content[1];
+}
+
+function atmosphereTimeLabel(value) {
+  if (!value) return tr("최신 모델 현재값", "Latest model current value");
+  return new Intl.DateTimeFormat(state.language === "en" ? "en-US" : "ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(value)) + tr(" 기준", " model");
+}
+
+async function renderAtmosphereLayer(layer = state.weatherLayer) {
+  initAtmosphereMap();
+  if (!atmosphereMap || !atmosphereDataLayer) return;
+  state.weatherLayer = layer;
+  elements.layerButtons.forEach((button) => button.classList.toggle("active", button.dataset.weatherLayer === layer));
+  elements.layerRefreshButton.classList.add("loading");
+  elements.atmosphereStatus.textContent = tr("최신 레이어를 불러오는 중입니다.", "Loading the latest layer.");
+  setAtmosphereLegend(layer);
+  const loadId = ++atmosphereLoadId;
+  atmosphereDataLayer.clearLayers();
+  if (atmosphereRadarLayer) { atmosphereRadarLayer.remove(); atmosphereRadarLayer = null; }
+  try {
+    if (layer === "radar") {
+      const data = await getRadarMetadata();
+      if (loadId !== atmosphereLoadId) return;
+      const frame = data.radar?.past?.at(-1);
+      if (!frame) throw new Error("No radar frame");
+      atmosphereRadarLayer = L.tileLayer(data.host + frame.path + "/256/{z}/{x}/{y}/2/1_1.png", { opacity: .78, maxNativeZoom: 7, maxZoom: 18 }).addTo(atmosphereMap);
+      elements.atmosphereStatus.textContent = atmosphereTimeLabel(frame.time * 1000);
+      return;
+    }
+
+    const points = atmosphereGridPoints();
+    const data = layer === "pm25" ? await fetchAtmosphereAir(points) : await fetchAtmosphereWeather(points);
+    if (loadId !== atmosphereLoadId) return;
+    data.forEach((item, index) => {
+      const point = points[index];
+      if (!point || !item?.current) return;
+      if (layer === "cloud") {
+        const cloud = Number(item.current.cloud_cover || 0);
+        L.circleMarker([point.latitude, point.longitude], { radius: 12 + cloud * .13, stroke: false, fillColor: cloudColor(cloud), fillOpacity: .38 + cloud * .0048 })
+          .bindTooltip(tr("구름량 ", "Cloud ") + Math.round(cloud) + "%")
+          .addTo(atmosphereDataLayer);
+      } else if (layer === "wind") {
+        const speed = Number(item.current.wind_speed_10m || 0);
+        const direction = (Number(item.current.wind_direction_10m || 0) + 180) % 360;
+        const icon = L.divIcon({ className: "wind-marker", iconSize: [54, 42], iconAnchor: [27, 21], html: '<div class="wind-vector" style="--wind-direction:' + direction + 'deg;--wind-speed:' + speed + '"><b>➜</b><small>' + displayWind(speed) + '</small></div>' });
+        L.marker([point.latitude, point.longitude], { icon, interactive: false }).addTo(atmosphereDataLayer);
+      } else {
+        const pm25 = Number(item.current.pm2_5 || 0);
+        L.circleMarker([point.latitude, point.longitude], { radius: 13 + Math.min(pm25, 150) * .11, color: "rgba(255,255,255,.72)", weight: 1, fillColor: pm25Color(pm25), fillOpacity: .72 })
+          .bindTooltip("PM2.5 " + pm25.toFixed(1) + " μg/m³")
+          .addTo(atmosphereDataLayer);
+      }
+    });
+    elements.atmosphereStatus.textContent = atmosphereTimeLabel(data[0]?.current?.time);
+  } catch (error) {
+    elements.atmosphereStatus.textContent = tr("레이어 데이터를 불러오지 못했습니다. 다시 시도해 주세요.", "Layer data is unavailable. Please retry.");
+  } finally {
+    if (loadId === atmosphereLoadId) elements.layerRefreshButton.classList.remove("loading");
+  }
+}
+
 function renderHourly(hourly) {
   elements.hourlyList.replaceChildren();
   const now = Date.now();
@@ -693,6 +860,7 @@ function renderPlace(place, weather) {
   }
   renderInsights(weather.forecast);
   updateSky(weather.forecast.current);
+  syncAtmosphereMap(place);
   rememberPlace(place);
   updateFavoriteButton();
   updateUrlState();
@@ -799,6 +967,7 @@ async function refreshSelectedWeather(manual = false) {
     state.lastRefreshAt = Date.now();
     renderPlace(place, weather);
     cacheWeather(place, weather);
+    if (state.activeTab === "layers") renderAtmosphereLayer(state.weatherLayer);
   } catch (error) {
     elements.refreshStatus.textContent = tr("갱신 실패 · 잠시 후 다시 시도", "Refresh failed · retrying later");
     if (!state.weather) renderAdviceFallback();
@@ -1079,16 +1248,17 @@ function applyLanguage() {
   const setSeries = (selector, korean, en) => document.querySelectorAll(selector).forEach((node, index) => { node.textContent = english ? en[index] : korean[index]; });
   const setLabel = (selector, korean, en) => { const node = document.querySelector(selector)?.firstChild; if (node) node.textContent = english ? en : korean; };
   const labels = {
-    "[data-tab=overview]": ["요약", "Overview"], "[data-tab=location]": ["위치 선택", "Location"], "[data-tab=hourly]": ["48시간", "48 hours"],
+    "[data-tab=overview]": ["요약", "Overview"], "[data-tab=location]": ["위치 선택", "Location"], "[data-tab=layers]": ["기상 지도", "Weather map"], "[data-tab=hourly]": ["48시간", "48 hours"],
     "[data-tab=weekly]": ["주간", "Weekly"], "[data-tab=history]": ["과거", "History"], "[data-tab=compare]": ["도시 비교", "Compare"],
-    "#geoButton": ["현재 위치", "My location"], "#mapApplyButton": ["이 위치 날씨 보기", "Use this location"], "#searchForm button": ["검색", "Search"],
+    "#geoButton": ["현재 위치", "My location"], "#resetButton": ["초기화", "Reset"], "#mapApplyButton": ["이 위치 날씨 보기", "Use this location"], "#searchForm button": ["검색", "Search"],
     ".lead": ["원하는 위치를 선택하고 필요한 정보만 탭으로 나눠 확인합니다.", "Choose any place and explore focused weather views."],
     ".saved-places-heading strong": ["즐겨찾기", "Favorites"], "#favoriteHelp": ["상단의 즐겨찾기 추가 버튼으로 현재 도시를 저장하세요.", "Use Add favorite above to save the current city."],
     ".advice-label": ["오늘의 준비", "TODAY'S CHECK"], ".air-quality-panel .panel-header h2": ["대기질과 건강", "Air quality & health"],
-    "#tab-hourly .panel-header h2": ["48시간 흐름", "48-hour outlook"], "#tab-weekly .panel-header h2": ["앞으로 7일", "Next 7 days"],
+    "#tab-layers .panel-header h2": ["실시간 기상 지도", "Live weather map"], "#tab-hourly .panel-header h2": ["48시간 흐름", "48-hour outlook"], "#tab-weekly .panel-header h2": ["앞으로 7일", "Next 7 days"],
     "#tab-history .panel-header h2": ["과거 날씨 조회", "Weather history"], "#tab-compare .panel-header h2": ["도시 날씨 비교", "City comparison"],
   };
   Object.entries(labels).forEach(([selector, pair]) => setText(selector, pair[0], pair[1]));
+  setSeries(".layer-button", ["비구름", "구름량", "바람", "미세먼지 PM2.5"], ["Rain radar", "Clouds", "Wind", "Fine dust PM2.5"]);
   setSeries(".location-meta dt", ["위도", "경도", "시간대", "고도"], ["Latitude", "Longitude", "Timezone", "Elevation"]);
   setSeries(".metric-grid dt", ["체감", "습도", "강수", "풍속", "기압", "구름"], ["Feels like", "Humidity", "Rain", "Wind", "Pressure", "Clouds"]);
   setSeries(".air-quality-grid dt", ["통합 AQI", "초미세먼지 PM2.5", "미세먼지 PM10", "오존 O₃", "이산화질소 NO₂"], ["Overall AQI", "Fine dust PM2.5", "Dust PM10", "Ozone O₃", "Nitrogen dioxide NO₂"]);
@@ -1149,7 +1319,7 @@ function initializeConnectionState() {
 }
 
 function registerPwa() {
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("service-worker.js?v=20260715-8").catch(() => {});
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("service-worker.js?v=20260715-10").catch(() => {});
   let installPrompt;
   addEventListener("beforeinstallprompt", (event) => { event.preventDefault(); installPrompt = event; elements.installButton.hidden = false; });
   elements.installButton.addEventListener("click", async () => {
@@ -1159,6 +1329,26 @@ function registerPwa() {
     installPrompt = null;
     elements.installButton.hidden = true;
   });
+}
+
+function resetApplication() {
+  if (elements.resetButton.dataset.armed !== "true") {
+    elements.resetButton.dataset.armed = "true";
+    elements.resetButton.textContent = tr("한 번 더 눌러 초기화", "Press again to reset");
+    showToast(tr("즐겨찾기, 최근 위치, 단위 설정을 지우려면 초기화 버튼을 한 번 더 누르세요.", "Press Reset again to clear favorites, recent places and display settings."));
+    clearTimeout(resetApplication.timer);
+    resetApplication.timer = setTimeout(() => {
+      elements.resetButton.dataset.armed = "false";
+      elements.resetButton.textContent = tr("초기화", "Reset");
+    }, 4500);
+    return;
+  }
+  try {
+    Object.keys(localStorage).filter((key) => key.startsWith("weather-")).forEach((key) => localStorage.removeItem(key));
+    sessionStorage.clear();
+  } catch (error) { /* Storage can be unavailable. */ }
+  history.replaceState(null, "", location.pathname);
+  location.replace(location.pathname);
 }
 
 async function initializeApp() {
@@ -1175,12 +1365,7 @@ async function initializeApp() {
   const tab = params.get("tab") || "overview";
   switchTab(document.querySelector('[data-tab="' + tab + '"]') ? tab : "overview");
   if (Number.isFinite(latitude) && Number.isFinite(longitude)) await loadByCoordinates(latitude, longitude, params.get("name") || "공유 위치");
-  else if (state.recentPlaces.length) {
-    elements.input.value = state.recentPlaces[0].shortName || state.recentPlaces[0].name;
-    state.places = [state.recentPlaces[0]];
-    renderResults();
-    await loadPlace(state.recentPlaces[0]);
-  } else await loadByQuery(elements.input.value);
+  else await loadByQuery("Seoul");
 }
 
 elements.form.addEventListener("submit", (event) => {
@@ -1206,6 +1391,9 @@ elements.unitButton.addEventListener("click", () => {
 });
 
 elements.favoriteButton.addEventListener("click", toggleFavorite);
+elements.resetButton.addEventListener("click", resetApplication);
+elements.layerButtons.forEach((button) => button.addEventListener("click", () => renderAtmosphereLayer(button.dataset.weatherLayer)));
+elements.layerRefreshButton.addEventListener("click", () => renderAtmosphereLayer(state.weatherLayer));
 elements.notifyButton.addEventListener("click", toggleNotifications);
 elements.settingsButton.addEventListener("click", () => { elements.settingsPanel.hidden = !elements.settingsPanel.hidden; });
 [elements.languageSelect, elements.windUnitSelect, elements.precipUnitSelect, elements.pressureUnitSelect].forEach((select) => select.addEventListener("change", savePreferences));
