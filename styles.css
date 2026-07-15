@@ -529,15 +529,15 @@ html[data-theme="dark"] .leaflet-control-attribution a { color: #80d4c5; }
 .refresh-status { display: block; margin: 7px 0 0 16px; color: var(--accent-strong); font-size: 0.74rem; font-weight: 800; }
 
 .advice-panel { display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: 220px; margin-bottom: 18px; overflow: hidden; border: 1px solid #e2c875; border-radius: 8px; background: #fff4c9; box-shadow: 0 14px 32px rgba(87, 68, 20, 0.12); }
-.advice-visual { position: relative; min-height: 220px; background-color: #e8dcae; background-image: url("assets/advice-sun.png?v=20260715-10"); background-position: center; background-repeat: no-repeat; background-size: cover; }
+.advice-visual { position: relative; min-height: 220px; background-color: #e8dcae; background-image: url("assets/advice-sun.png?v=20260715-11"); background-position: center; background-repeat: no-repeat; background-size: cover; }
 .advice-visual::after { position: absolute; right: 12px; bottom: 12px; display: grid; width: 38px; height: 38px; place-items: center; border: 1px solid rgba(255, 255, 255, 0.65); border-radius: 50%; background: rgba(22, 36, 31, 0.72); color: #fff; content: "☀"; font-size: 1.2rem; box-shadow: 0 6px 16px rgba(18, 36, 30, 0.22); }
 .advice-visual[data-kind="rain"]::after { content: "☂"; }
 .advice-visual[data-kind="cold"]::after { content: "❄"; }
 .advice-visual[data-kind="heat"]::after { content: "♨"; }
-.advice-visual[data-kind="rain"] { background-image: url("assets/advice-rain.png?v=20260715-10"); }
-.advice-visual[data-kind="sun"] { background-image: url("assets/advice-sun.png?v=20260715-10"); }
-.advice-visual[data-kind="cold"] { background-image: url("assets/advice-cold.png?v=20260715-10"); }
-.advice-visual[data-kind="heat"] { background-image: url("assets/advice-heat.png?v=20260715-10"); }
+.advice-visual[data-kind="rain"] { background-image: url("assets/advice-rain.png?v=20260715-11"); }
+.advice-visual[data-kind="sun"] { background-image: url("assets/advice-sun.png?v=20260715-11"); }
+.advice-visual[data-kind="cold"] { background-image: url("assets/advice-cold.png?v=20260715-11"); }
+.advice-visual[data-kind="heat"] { background-image: url("assets/advice-heat.png?v=20260715-11"); }
 .advice-copy { align-self: center; padding: 26px 30px; }
 .advice-label { margin-bottom: 8px; color: #a9473d; font-size: 0.76rem; font-weight: 900; text-transform: uppercase; }
 .advice-copy h2 { color: #28302d; font-size: 1.55rem; }
@@ -707,4 +707,21 @@ html[data-theme="dark"] .atmosphere-legend span { color: #b8c5c0; }
   .reset-button { flex-basis: calc(50% - 4px); }
   .atmosphere-map-wrap, .atmosphere-map { min-height: 420px; height: 420px; }
   .atmosphere-legend { bottom: 22px; }
+}
+/* Mobile navigation and readable atmospheric fields */
+.wind-marker { overflow: visible; }
+.wind-glyph { position: relative; display: grid; width: 58px; height: 56px; place-items: center; }
+.wind-glyph b { display: grid; width: 36px; height: 36px; place-items: center; border: 2px solid #fff; border-radius: 50%; background: rgba(255, 255, 255, .92); color: var(--wind-color); box-shadow: 0 3px 10px rgba(9, 31, 28, .36); font-size: 25px; line-height: 1; transform: rotate(var(--wind-direction)); }
+.wind-glyph small { position: absolute; top: 38px; left: 50%; min-width: 46px; padding: 3px 5px; border: 1px solid rgba(255, 255, 255, .75); border-radius: 4px; background: #173b35; color: #fff; box-shadow: 0 2px 6px rgba(9, 31, 28, .32); font-size: 9px; font-weight: 900; line-height: 1.15; text-align: center; transform: translateX(-50%); white-space: nowrap; }
+html[data-theme="dark"] .wind-glyph b { border-color: #10231f; background: rgba(246, 250, 248, .94); }
+
+@media (max-width: 620px) {
+  .tabbar { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; margin: 0 0 12px; padding: 6px; overflow: visible; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); box-shadow: 0 8px 20px rgba(25, 48, 43, .1); }
+  .tab-button { min-width: 0; min-height: 44px; padding: 7px 10px; border: 1px solid transparent; border-radius: 5px; background: transparent; font-size: .8rem; line-height: 1.15; white-space: normal; }
+  .tab-button[data-tab="overview"] { grid-column: 1 / -1; }
+  .tab-button.active { border-color: var(--accent); background: var(--accent); color: #fff; box-shadow: 0 4px 10px rgba(10, 108, 96, .2); }
+  html[data-theme="dark"] .tab-button.active { border-color: var(--accent); background: var(--accent); color: #fff; }
+  .wind-glyph { width: 50px; }
+  .wind-glyph b { width: 32px; height: 32px; font-size: 22px; }
+  .wind-glyph small { top: 36px; min-width: 42px; font-size: 8px; }
 }

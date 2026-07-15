@@ -461,13 +461,21 @@ function atmosphereGridPoints() {
   if (east - west > 300) { west = center.lng - 150; east = center.lng + 150; }
   const normalizeLongitude = (value) => ((value + 540) % 360) - 180;
   const points = [];
-  const rows = 4;
-  const columns = 5;
+  const rows = 5;
+  const columns = 6;
+  const latitudeStep = (north - south) / rows;
+  const longitudeStep = (east - west) / columns;
   for (let row = 0; row < rows; row += 1) {
-    const latitude = south + ((north - south) * row) / Math.max(1, rows - 1);
+    const latitude = south + latitudeStep * (row + .5);
     for (let column = 0; column < columns; column += 1) {
-      const longitude = normalizeLongitude(west + ((east - west) * column) / Math.max(1, columns - 1));
-      points.push({ latitude, longitude });
+      const cellWest = west + longitudeStep * column;
+      const cellEast = cellWest + longitudeStep;
+      const longitude = normalizeLongitude(cellWest + longitudeStep * .5);
+      points.push({
+        latitude,
+        longitude,
+        cellBounds: [[south + latitudeStep * row, cellWest], [south + latitudeStep * (row + 1), cellEast]],
+      });
     }
   }
   return points;
@@ -510,12 +518,19 @@ function pm25Color(value) {
   return "#754a99";
 }
 
+function windColor(value) {
+  if (value >= 40) return "#b63737";
+  if (value >= 25) return "#d76825";
+  if (value >= 12) return "#1677a3";
+  return "#087f72";
+}
+
 function setAtmosphereLegend(layer) {
   const content = {
     radar: [tr("비구름 강도", "Rain intensity"), tr("파랑 약함 · 노랑/빨강 강함", "Blue light · yellow/red heavy"), "radar"],
-    cloud: [tr("구름량", "Cloud cover"), tr("밝음 적음 · 진함 많음", "Light low · dark high"), "cloud"],
-    wind: [tr("바람 흐름", "Wind flow"), tr("화살표 방향 · 숫자 풍속", "Arrow direction · speed label"), ""],
-    pm25: ["PM2.5", tr("초록 좋음 · 보라 매우 나쁨", "Green good · purple very unhealthy"), "pm25"],
+    cloud: [tr("구름량", "Cloud cover"), tr("연속 격자 · 진할수록 구름 많음", "Continuous grid · darker means cloudier"), "cloud"],
+    wind: [tr("바람 흐름", "Wind flow"), tr("화살표 방향 · 아래 배지 풍속", "Arrow direction · speed badge below"), ""],
+    pm25: ["PM2.5", tr("색상 격자 · 초록 좋음 / 보라 매우 나쁨", "Color grid · green good / purple very unhealthy"), "pm25"],
   }[layer];
   elements.atmosphereLegend.innerHTML = "<strong></strong><span></span>" + (content[2] ? '<div class="legend-scale ' + content[2] + '"></div>' : "");
   elements.atmosphereLegend.querySelector("strong").textContent = content[0];
@@ -557,17 +572,19 @@ async function renderAtmosphereLayer(layer = state.weatherLayer) {
       if (!point || !item?.current) return;
       if (layer === "cloud") {
         const cloud = Number(item.current.cloud_cover || 0);
-        L.circleMarker([point.latitude, point.longitude], { radius: 12 + cloud * .13, stroke: false, fillColor: cloudColor(cloud), fillOpacity: .38 + cloud * .0048 })
+        const color = cloudColor(cloud);
+        L.rectangle(point.cellBounds, { color, weight: 1, opacity: .3, fillColor: color, fillOpacity: .38 + cloud * .0048 })
           .bindTooltip(tr("구름량 ", "Cloud ") + Math.round(cloud) + "%")
           .addTo(atmosphereDataLayer);
       } else if (layer === "wind") {
         const speed = Number(item.current.wind_speed_10m || 0);
         const direction = (Number(item.current.wind_direction_10m || 0) + 180) % 360;
-        const icon = L.divIcon({ className: "wind-marker", iconSize: [54, 42], iconAnchor: [27, 21], html: '<div class="wind-vector" style="--wind-direction:' + direction + 'deg;--wind-speed:' + speed + '"><b>➜</b><small>' + displayWind(speed) + '</small></div>' });
-        L.marker([point.latitude, point.longitude], { icon, interactive: false }).addTo(atmosphereDataLayer);
+        const icon = L.divIcon({ className: "wind-marker", iconSize: [58, 56], iconAnchor: [29, 28], html: '<div class="wind-glyph" style="--wind-direction:' + direction + 'deg;--wind-color:' + windColor(speed) + '"><b aria-hidden="true">&#10148;</b><small>' + displayWind(speed) + '</small></div>' });
+        L.marker([point.latitude, point.longitude], { icon }).bindTooltip(tr("풍속 ", "Wind ") + displayWind(speed)).addTo(atmosphereDataLayer);
       } else {
         const pm25 = Number(item.current.pm2_5 || 0);
-        L.circleMarker([point.latitude, point.longitude], { radius: 13 + Math.min(pm25, 150) * .11, color: "rgba(255,255,255,.72)", weight: 1, fillColor: pm25Color(pm25), fillOpacity: .72 })
+        const color = pm25Color(pm25);
+        L.rectangle(point.cellBounds, { color, weight: 1, opacity: .36, fillColor: color, fillOpacity: .7 })
           .bindTooltip("PM2.5 " + pm25.toFixed(1) + " μg/m³")
           .addTo(atmosphereDataLayer);
       }
@@ -1319,7 +1336,7 @@ function initializeConnectionState() {
 }
 
 function registerPwa() {
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("service-worker.js?v=20260715-10").catch(() => {});
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("service-worker.js?v=20260715-11").catch(() => {});
   let installPrompt;
   addEventListener("beforeinstallprompt", (event) => { event.preventDefault(); installPrompt = event; elements.installButton.hidden = false; });
   elements.installButton.addEventListener("click", async () => {
