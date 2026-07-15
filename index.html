@@ -3,12 +3,16 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#087f8c">
+    <link rel="manifest" href="manifest.webmanifest?v=20260715-7">
     <title>World Weather Atlas</title>
     <script>try{document.documentElement.dataset.theme=localStorage.getItem("weather-theme")||((matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light")}catch(e){}</script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
-    <link rel="stylesheet" href="styles.css?v=20260715-2">
+    <link rel="stylesheet" href="styles.css?v=20260715-7">
   </head>
   <body>
+    <div id="offlineBanner" class="offline-banner" hidden>오프라인 상태입니다. 마지막으로 저장한 날씨를 표시합니다.</div>
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
     <main class="app-shell">
       <section class="masthead" aria-label="세계 날씨 검색">
         <div>
@@ -25,8 +29,18 @@
           <div class="quick-actions">
             <button class="ghost-button" id="geoButton" type="button">현재 위치</button>
             <button class="ghost-button" id="unitButton" type="button" aria-pressed="false">°F 보기</button>
+            <button class="ghost-button icon-button" id="favoriteButton" type="button" aria-label="즐겨찾기 추가" title="즐겨찾기"><span aria-hidden="true">☆</span></button>
+            <button class="ghost-button icon-button" id="notifyButton" type="button" aria-label="강수 알림 켜기" title="강수 알림"><span aria-hidden="true">!</span></button>
             <button class="ghost-button icon-button" id="refreshButton" type="button" aria-label="날씨 새로고침" title="날씨 새로고침"><span aria-hidden="true">↻</span></button>
-            <button class="ghost-button theme-button" id="themeButton" type="button" aria-label="다크 모드로 전환" title="다크 모드"><span id="themeIcon" aria-hidden="true">◐</span></button>
+            <button class="ghost-button icon-button" id="settingsButton" type="button" aria-label="표시 설정" title="표시 설정"><span aria-hidden="true">⚙</span></button>
+            <button class="ghost-button icon-button theme-button" id="themeButton" type="button" aria-label="다크 모드로 전환" title="다크 모드"><span id="themeIcon" aria-hidden="true">◐</span></button>
+            <button class="ghost-button icon-button" id="installButton" type="button" aria-label="앱 설치" title="앱 설치" hidden><span aria-hidden="true">↓</span></button>
+          </div>
+          <div id="settingsPanel" class="settings-panel" hidden>
+            <label>언어<select id="languageSelect"><option value="ko">한국어</option><option value="en">English</option></select></label>
+            <label>풍속<select id="windUnitSelect"><option value="kmh">km/h</option><option value="ms">m/s</option><option value="mph">mph</option></select></label>
+            <label>강수<select id="precipUnitSelect"><option value="mm">mm</option><option value="inch">inch</option></select></label>
+            <label>기압<select id="pressureUnitSelect"><option value="hpa">hPa</option><option value="inhg">inHg</option></select></label>
           </div>
         </div>
       </section>
@@ -37,6 +51,7 @@
         <button class="tab-button" type="button" data-tab="hourly">48시간</button>
         <button class="tab-button" type="button" data-tab="weekly">주간</button>
         <button class="tab-button" type="button" data-tab="history">과거</button>
+        <button class="tab-button" type="button" data-tab="compare">도시 비교</button>
       </nav>
 
       <section class="location-bar" aria-live="polite">
@@ -67,6 +82,15 @@
           <div id="rainRadarMap" class="rain-radar-map" aria-label="현재 비구름 레이더 지도"></div>
           <p class="radar-credit">레이더: <a href="https://www.rainviewer.com/" target="_blank" rel="noreferrer">RainViewer</a> · 지도: OpenStreetMap</p>
         </section>
+        <article class="panel air-quality-panel">
+          <div class="panel-header"><h2>대기질과 건강</h2><span id="airQualityStatus">대기질 데이터 준비 중</span></div>
+          <dl class="air-quality-grid">
+            <div class="aqi-primary"><dt>통합 AQI</dt><dd id="airQualityIndex">--</dd><small id="airQualityLevel">--</small></div>
+            <div><dt>초미세먼지 PM2.5</dt><dd id="pm25">--</dd></div><div><dt>미세먼지 PM10</dt><dd id="pm10">--</dd></div>
+            <div><dt>오존 O₃</dt><dd id="ozone">--</dd></div><div><dt>이산화질소 NO₂</dt><dd id="nitrogenDioxide">--</dd></div>
+          </dl>
+          <p class="data-credit">대기질: Open-Meteo · CAMS ENSEMBLE</p>
+        </article>
         <article class="panel">
           <div class="panel-header"><h2>해와 생활 지표</h2><span>오늘 기준</span></div>
           <dl class="insight-list">
@@ -77,6 +101,7 @@
       </section>
 
       <section class="tab-panel" id="tab-location">
+        <section class="place-library"><article class="panel"><div class="panel-header"><h2>즐겨찾는 도시</h2><span>최대 6곳 저장</span></div><div id="favoriteList" class="place-chip-list"><p class="empty-state">저장한 도시가 없습니다.</p></div></article><article class="panel"><div class="panel-header"><h2>최근 위치</h2><span>최근 5곳</span></div><div id="recentList" class="place-chip-list"><p class="empty-state">최근 조회 위치가 없습니다.</p></div></article></section>
         <section class="location-tools">
           <article class="panel">
             <div class="panel-header"><h2>검색 후보</h2><span id="resultStatus">도시를 검색하면 후보가 표시됩니다.</span></div>
@@ -86,7 +111,7 @@
             <div class="panel-header"><h2>지도에서 선택</h2><span>지도를 클릭해 핀 이동</span></div>
             <div id="weatherMap" class="weather-map" aria-label="날씨 위치 선택 지도"></div>
             <div class="map-selection">
-              <div><span>선택한 위치</span><strong id="mapCoordinates">37.5665, 126.9780</strong></div>
+              <div><span id="mapPlaceLabel">핀으로 선택한 위치</span><strong id="mapCoordinates">37.5665, 126.9780</strong></div>
               <button id="mapApplyButton" type="button">이 위치 날씨 보기</button>
             </div>
             <p class="preset-title">주요 도시</p>
@@ -118,12 +143,20 @@
           <div id="pastList" class="week-cards"></div>
         </article>
       </section>
+
+      <section class="tab-panel" id="tab-compare">
+        <article class="panel compare-panel">
+          <div class="panel-header"><h2>도시 날씨 비교</h2><span id="compareStatus">즐겨찾기에서 최대 3곳을 선택하세요.</span></div>
+          <div id="compareSelector" class="compare-selector"></div>
+          <div id="compareGrid" class="compare-grid"><p class="empty-state">비교할 도시를 선택해 주세요.</p></div>
+        </article>
+      </section>
     </main>
 
     <template id="resultTemplate"><button class="result-card" type="button"><span class="result-marker" aria-hidden="true"></span><span class="result-copy"><strong class="result-name"></strong><span class="result-detail"></span></span><span class="result-action">선택</span></button></template>
     <template id="hourTemplate"><div class="hour-row"><div class="hour-time"><strong class="hour-label"></strong><span class="hour-desc"></span></div><div class="hour-metrics"><span class="hour-temp"></span><span class="hour-rain"></span><span class="hour-wind"></span><span class="hour-uv"></span></div></div></template>
     <template id="dayTemplate"><div class="day-row"><div class="day-label"><strong class="day-date"></strong><span class="day-desc"></span></div><div class="day-values"><span class="temp-range"></span><span class="rain"></span><span class="sun"></span></div></div></template>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-    <script src="script.js?v=20260715-2"></script>
+    <script src="script.js?v=20260715-7"></script>
   </body>
 </html>

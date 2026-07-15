@@ -13,8 +13,14 @@
 - Leaflet 지도 클릭 및 핀 드래그를 통한 위치 선택
 - 현재 기온, 체감온도, 습도, 강수량, 풍속, 기압, 구름량 표시
 - 10분 간격 자동 갱신과 수동 새로고침
-- 현재 비가 올 때만 표시되는 RainViewer 비구름 레이더
-- 강수, 자외선, 기온, 바람에 따른 생활 조언
+- 현재 기상 코드와 실시간 강수량으로 비를 확인할 때만 표시되는 RainViewer 비구름 레이더
+- 강수, 자외선, 기온, 바람에 따른 생활 조언과 12시간 이내 강수 알림
+- Open-Meteo 기반 AQI, PM2.5, PM10, 오존, 이산화질소 대기질 정보
+- 즐겨찾기, 최근 위치, 최대 3개 도시 날씨 비교
+- 선택 위치와 탭을 유지하는 공유 URL
+- 마지막 정상 날씨 로컬 캐시와 API별 오류 상태
+- 풍속, 강수량, 기압 단위 설정과 한국어/영어 전환
+- PWA 설치와 오프라인 앱 화면
 - 48시간 기온 변화와 강수확률 그래프
 - 향후 7일 최고·최저 기온 및 강수량 그래프
 - 최대 31일 범위의 과거 날씨 조회
@@ -38,6 +44,7 @@
 | 도시 검색 | Open-Meteo Geocoding API |
 | 현재 날씨 및 예보 | Open-Meteo Forecast API |
 | 과거 날씨 | Open-Meteo Historical Weather API |
+| 대기질 | Open-Meteo Air Quality API / CAMS ENSEMBLE |
 | 비구름 레이더 | RainViewer Weather Maps API |
 | 지도 타일 | OpenStreetMap |
 
@@ -60,6 +67,9 @@ npx serve .
 ├── index.html
 ├── styles.css
 ├── script.js
+├── manifest.webmanifest
+├── service-worker.js
+├── assets/
 ├── docs/
 │   └── PROGRAM_GUIDE.md
 └── .github/workflows/pages.yml
@@ -72,6 +82,8 @@ npx serve .
 ## 참고
 
 - 과거 날씨는 한 번에 최대 31일까지 조회하도록 제한했습니다.
+- 날씨 캐시는 브라우저에 최대 7일간 보관되며 최신 데이터가 아닐 때 저장 시각을 표시합니다.
+- 강수 알림은 브라우저가 열려 있고 알림 권한이 허용된 환경에서 동작합니다.
 - OpenStreetMap 지도 사용 시 화면에 표시되는 저작자 표시를 유지해야 합니다.
 - 날씨 데이터의 제공 시점과 정확도는 Open-Meteo 데이터셋에 따릅니다.
 - RainViewer 레이더는 현재 비가 확인될 때만 요청하며 서비스 제공 범위에 따라 일부 지역은 표시되지 않을 수 있습니다.
