@@ -1007,30 +1007,32 @@ function renderHourly(hourly) {
 
   const width = 1240, height = 300, left = 42, right = 20, top = 34, bottom = 48;
   const plotWidth = width - left - right, plotHeight = height - top - bottom;
+  const lanes = chartLanes(top, plotHeight);
   const minTemp = Math.floor(Math.min(...temps) - 3), maxTemp = Math.ceil(Math.max(...temps) + 3);
   const range = Math.max(1, maxTemp - minTemp);
   const x = (index) => left + (plotWidth * index) / Math.max(1, times.length - 1);
-  const y = (value) => top + ((maxTemp - value) / range) * plotHeight;
+  const y = (value) => chartTemperatureY(value, maxTemp, range, lanes);
   const svg = svgNode("svg", { viewBox: "0 0 " + width + " " + height, role: "img", "aria-label": "기온과 강수 그래프" });
   svg.append(svgNode("line", { x1: left, y1: top, x2: left, y2: top + plotHeight, class: "chart-now-line" }));
   svg.append(svgNode("text", { x: left + 6, y: top + 12, class: "chart-now-label" }, tr("현재", "Now")));
 
   [0, 0.5, 1].forEach((ratio) => {
-    const lineY = top + plotHeight * ratio;
+    const lineY = lanes.tempTop + lanes.tempHeight * ratio;
     svg.append(svgNode("line", { x1: left, y1: lineY, x2: width - right, y2: lineY, class: "chart-grid" }));
     svg.append(svgNode("text", { x: left - 8, y: lineY + 4, class: "chart-axis", "text-anchor": "end" }, Math.round(maxTemp - range * ratio) + "°"));
   });
 
+  appendRainLane(svg, left, plotWidth, lanes);
   rain.forEach((value, index) => {
-    const barHeight = (value / 100) * (plotHeight * 0.42);
-    svg.append(svgNodeWithTitle("rect", { x: x(index) - 7, y: top + plotHeight - barHeight, width: 14, height: barHeight, rx: 3, class: "hour-rain-bar" }, formatHour(times[index]) + " · 강수확률 " + value + "%"));
+    const barHeight = (value / 100) * lanes.rainHeight;
+    svg.append(svgNodeWithTitle("rect", { x: x(index) - 7, y: lanes.rainBottom - barHeight, width: 14, height: barHeight, rx: 3, class: "hour-rain-bar" }, formatHour(times[index]) + " · 강수확률 " + value + "%"));
   });
 
   svg.append(svgNode("polyline", { points: temps.map((value, index) => x(index) + "," + y(value)).join(" "), class: "hour-temp-line" }));
   times.forEach((time, index) => {
     if (index % 6 !== 0 && index !== times.length - 1) return;
     svg.append(svgNode("circle", { cx: x(index), cy: y(temps[index]), r: 5, class: "hour-temp-dot" }));
-    svg.append(svgNode("text", { x: x(index), y: y(temps[index]) - 11, class: "hour-temp-value", "text-anchor": "middle" }, Math.round(temps[index]) + "°"));
+    svg.append(svgNode("text", { x: x(index), y: chartTemperatureLabelY(y(temps[index]), 0, lanes), class: "hour-temp-value", "text-anchor": "middle" }, Math.round(temps[index]) + "°"));
     svg.append(svgNode("text", { x: x(index), y: height - 17, class: "chart-day", "text-anchor": "middle" }, formatHour(time)));
   });
 
@@ -1092,6 +1094,37 @@ function svgNodeWithTitle(tag, attributes, titleText) {
   return node;
 }
 
+function chartLanes(top, plotHeight) {
+  const tempHeight = plotHeight * 0.62;
+  const rainHeight = plotHeight * 0.23;
+  return {
+    tempTop: top,
+    tempHeight,
+    tempBottom: top + tempHeight,
+    rainTop: top + plotHeight - rainHeight,
+    rainHeight,
+    rainBottom: top + plotHeight,
+  };
+}
+
+function chartTemperatureY(value, maxTemp, range, lanes) {
+  return lanes.tempTop + ((maxTemp - value) / range) * lanes.tempHeight;
+}
+
+function chartTemperatureLabelY(pointY, lineIndex, lanes) {
+  return lineIndex === 0
+    ? Math.max(lanes.tempTop + 13, pointY - 11)
+    : Math.min(lanes.tempBottom - 4, pointY + 20);
+}
+
+function chartRainLabelY(barTop, lanes) {
+  return Math.max(lanes.rainTop + 12, barTop - 7);
+}
+
+function appendRainLane(svg, left, width, lanes) {
+  svg.append(svgNode("rect", { x: left, y: lanes.rainTop, width, height: lanes.rainHeight, rx: 5, class: "chart-rain-lane" }));
+}
+
 function renderWeeklyChart(daily) {
   const dates = daily.time.slice(0, 7);
   const highs = daily.temperature_2m_max.slice(0, 7).map(chartTemp);
@@ -1099,27 +1132,29 @@ function renderWeeklyChart(daily) {
   const rain = daily.precipitation_sum.slice(0, 7).map((value) => Number(value || 0));
   const width = 840, height = 330, left = 48, right = 24, top = 36, bottom = 62;
   const plotWidth = width - left - right, plotHeight = height - top - bottom;
+  const lanes = chartLanes(top, plotHeight);
   const minTemp = Math.floor(Math.min(...lows) - 3), maxTemp = Math.ceil(Math.max(...highs) + 3);
   const tempRange = Math.max(1, maxTemp - minTemp), maxRain = Math.max(5, ...rain);
   const x = (index) => left + (plotWidth * index) / Math.max(1, dates.length - 1);
-  const y = (value) => top + ((maxTemp - value) / tempRange) * plotHeight;
+  const y = (value) => chartTemperatureY(value, maxTemp, tempRange, lanes);
   const svg = svgNode("svg", { viewBox: "0 0 " + width + " " + height, role: "img", "aria-label": "기온과 강수 그래프" });
   svg.append(svgNode("line", { x1: left, y1: top, x2: left, y2: top + plotHeight, class: "chart-now-line" }));
   svg.append(svgNode("text", { x: left + 6, y: top + 12, class: "chart-now-label" }, tr("오늘", "Today")));
 
   [0, 0.5, 1].forEach((ratio) => {
-    const lineY = top + plotHeight * ratio;
+    const lineY = lanes.tempTop + lanes.tempHeight * ratio;
     svg.append(svgNode("line", { x1: left, y1: lineY, x2: width - right, y2: lineY, class: "chart-grid" }));
     svg.append(svgNode("text", { x: left - 10, y: lineY + 4, class: "chart-axis", "text-anchor": "end" }, Math.round(maxTemp - tempRange * ratio) + "°"));
   });
 
+  appendRainLane(svg, left, plotWidth, lanes);
   dates.forEach((date, index) => {
-    const barHeight = (rain[index] / maxRain) * (plotHeight * 0.35);
+    const barHeight = (rain[index] / maxRain) * lanes.rainHeight;
     const day = new Intl.DateTimeFormat(state.language === "en" ? "en-US" : "ko-KR", { weekday: "short" }).format(new Date(date + "T00:00:00"));
     const barWidth = Math.max(8, Math.min(28, plotWidth / dates.length * 0.55));
-    svg.append(svgNodeWithTitle("rect", { x: x(index) - barWidth / 2, y: top + plotHeight - barHeight, width: barWidth, height: barHeight, rx: 4, class: "rain-bar" }, formatDate(date) + " · 강수 " + displayPrecip(rain[index])));
+    svg.append(svgNodeWithTitle("rect", { x: x(index) - barWidth / 2, y: lanes.rainBottom - barHeight, width: barWidth, height: barHeight, rx: 4, class: "rain-bar" }, formatDate(date) + " · 강수 " + displayPrecip(rain[index])));
     svg.append(svgNode("text", { x: x(index), y: height - 26, class: "chart-day", "text-anchor": "middle" }, day));
-    svg.append(svgNode("text", { x: x(index), y: top + plotHeight - barHeight - 7, class: "chart-rain", "text-anchor": "middle" }, displayPrecip(rain[index])));
+    svg.append(svgNode("text", { x: x(index), y: chartRainLabelY(lanes.rainBottom - barHeight, lanes), class: "chart-rain", "text-anchor": "middle" }, displayPrecip(rain[index])));
   });
 
   [highs, lows].forEach((values, lineIndex) => {
@@ -1127,7 +1162,7 @@ function renderWeeklyChart(daily) {
     svg.append(svgNode("polyline", { points: values.map((value, index) => x(index) + "," + y(value)).join(" "), class: lineClass }));
     values.forEach((value, index) => {
       svg.append(svgNodeWithTitle("circle", { cx: x(index), cy: y(value), r: 5, class: lineIndex === 0 ? "high-dot" : "low-dot" }, formatDate(dates[index]) + " · " + (lineIndex === 0 ? "최고 " : "최저 ") + Math.round(value) + "°"));
-      svg.append(svgNode("text", { x: x(index), y: y(value) + (lineIndex === 0 ? -10 : 20), class: "chart-value " + (lineIndex === 0 ? "high" : "low"), "text-anchor": "middle" }, Math.round(value) + "°"));
+      svg.append(svgNode("text", { x: x(index), y: chartTemperatureLabelY(y(value), lineIndex, lanes), class: "chart-value " + (lineIndex === 0 ? "high" : "low"), "text-anchor": "middle" }, Math.round(value) + "°"));
     });
   });
 
@@ -1147,34 +1182,36 @@ function renderHistoryChart(daily) {
   const wind = daily.wind_speed_10m_max.map(Number);
   const width = 840, height = 330, left = 48, right = 24, top = 36, bottom = 62;
   const plotWidth = width - left - right, plotHeight = height - top - bottom;
+  const lanes = chartLanes(top, plotHeight);
   const minTemp = Math.floor(Math.min(...lows) - 3), maxTemp = Math.ceil(Math.max(...highs) + 3);
   const tempRange = Math.max(1, maxTemp - minTemp), maxRain = Math.max(5, ...rain);
   const x = (index) => left + (plotWidth * index) / Math.max(1, dates.length - 1);
-  const y = (value) => top + ((maxTemp - value) / tempRange) * plotHeight;
+  const y = (value) => chartTemperatureY(value, maxTemp, tempRange, lanes);
   const svg = svgNode("svg", { viewBox: "0 0 " + width + " " + height, role: "img", "aria-label": "기온과 강수 그래프" });
   svg.append(svgNode("line", { x1: width - right, y1: top, x2: width - right, y2: top + plotHeight, class: "chart-now-line" }));
   svg.append(svgNode("text", { x: width - right - 6, y: top + 12, class: "chart-now-label", "text-anchor": "end" }, tr("최신", "Latest")));
 
   [0, 0.5, 1].forEach((ratio) => {
-    const lineY = top + plotHeight * ratio;
+    const lineY = lanes.tempTop + lanes.tempHeight * ratio;
     svg.append(svgNode("line", { x1: left, y1: lineY, x2: width - right, y2: lineY, class: "chart-grid" }));
     svg.append(svgNode("text", { x: left - 10, y: lineY + 4, class: "chart-axis", "text-anchor": "end" }, Math.round(maxTemp - tempRange * ratio) + "°"));
   });
 
+  appendRainLane(svg, left, plotWidth, lanes);
   dates.forEach((date, index) => {
-    const barHeight = (rain[index] / maxRain) * (plotHeight * 0.35);
+    const barHeight = (rain[index] / maxRain) * lanes.rainHeight;
     const label = new Intl.DateTimeFormat(state.language === "en" ? "en-US" : "ko-KR", { weekday: "short" }).format(new Date(date + "T00:00:00"));
     const barWidth = Math.max(8, Math.min(28, plotWidth / dates.length * 0.55));
-    svg.append(svgNodeWithTitle("rect", { x: x(index) - barWidth / 2, y: top + plotHeight - barHeight, width: barWidth, height: barHeight, rx: 4, class: "rain-bar" }, formatDate(date) + " · 강수 " + displayPrecip(rain[index])));
+    svg.append(svgNodeWithTitle("rect", { x: x(index) - barWidth / 2, y: lanes.rainBottom - barHeight, width: barWidth, height: barHeight, rx: 4, class: "rain-bar" }, formatDate(date) + " · 강수 " + displayPrecip(rain[index])));
     if (index % labelStep === 0 || index === dates.length - 1) svg.append(svgNode("text", { x: x(index), y: height - 26, class: "chart-day", "text-anchor": "middle" }, label));
-    if (index % labelStep === 0 || index === dates.length - 1) svg.append(svgNode("text", { x: x(index), y: top + plotHeight - barHeight - 7, class: "chart-rain", "text-anchor": "middle" }, displayPrecip(rain[index])));
+    if (index % labelStep === 0 || index === dates.length - 1) svg.append(svgNode("text", { x: x(index), y: chartRainLabelY(lanes.rainBottom - barHeight, lanes), class: "chart-rain", "text-anchor": "middle" }, displayPrecip(rain[index])));
   });
 
   [highs, lows].forEach((values, lineIndex) => {
     svg.append(svgNode("polyline", { points: values.map((value, index) => x(index) + "," + y(value)).join(" "), class: lineIndex === 0 ? "temp-line high-line-path" : "temp-line low-line-path" }));
     values.forEach((value, index) => {
       svg.append(svgNodeWithTitle("circle", { cx: x(index), cy: y(value), r: 5, class: lineIndex === 0 ? "high-dot" : "low-dot" }, formatDate(dates[index]) + " · " + (lineIndex === 0 ? "최고 " : "최저 ") + Math.round(value) + "°"));
-      if (index % labelStep === 0 || index === dates.length - 1) svg.append(svgNode("text", { x: x(index), y: y(value) + (lineIndex === 0 ? -10 : 20), class: "chart-value " + (lineIndex === 0 ? "high" : "low"), "text-anchor": "middle" }, Math.round(value) + "°"));
+      if (index % labelStep === 0 || index === dates.length - 1) svg.append(svgNode("text", { x: x(index), y: chartTemperatureLabelY(y(value), lineIndex, lanes), class: "chart-value " + (lineIndex === 0 ? "high" : "low"), "text-anchor": "middle" }, Math.round(value) + "°"));
     });
   });
 
@@ -1778,7 +1815,7 @@ function registerPwa() {
       reloading = true;
       location.reload();
     });
-    navigator.serviceWorker.register("service-worker.js?v=20260719-25").then((registration) => registration.update()).catch(() => {});
+    navigator.serviceWorker.register("service-worker.js?v=20260719-26").then((registration) => registration.update()).catch(() => {});
   }
   let installPrompt;
   addEventListener("beforeinstallprompt", (event) => { event.preventDefault(); installPrompt = event; elements.installButton.hidden = false; });

@@ -28,7 +28,7 @@ function mockForecast() {
       weather_code: dailyTime.map(() => 1),
       temperature_2m_max: dailyTime.map((_, i) => 30 + i % 2),
       temperature_2m_min: dailyTime.map(() => 22),
-      precipitation_sum: dailyTime.map(() => 0),
+      precipitation_sum: dailyTime.map((_, i) => [0, 38, 12, 55, 4, 28, 46, 8][i]),
       precipitation_probability_max: dailyTime.map(() => 20),
       wind_speed_10m_max: dailyTime.map(() => 18),
       sunrise: dailyTime.map((day) => day + "T05:25"),
@@ -41,7 +41,7 @@ function mockForecast() {
 
 function mockArchive() {
   const time = Array.from({ length: 7 }, (_, index) => "2026-07-" + String(12 + index).padStart(2, "0"));
-  return { timezone: "Asia/Seoul", utc_offset_seconds: 32400, daily: { time, weather_code: time.map(() => 2), temperature_2m_max: time.map(() => 29), temperature_2m_min: time.map(() => 21), precipitation_sum: time.map(() => 1), wind_speed_10m_max: time.map(() => 16) } };
+  return { timezone: "Asia/Seoul", utc_offset_seconds: 32400, daily: { time, weather_code: time.map(() => 2), temperature_2m_max: time.map(() => 29), temperature_2m_min: time.map(() => 21), precipitation_sum: time.map((_, i) => [32, 4, 47, 18, 55, 7, 38][i]), wind_speed_10m_max: time.map(() => 16) } };
 }
 
 async function mockApis(page) {
@@ -61,6 +61,16 @@ async function mockApis(page) {
   });
 }
 
+async function crossGroupOverlaps(page, firstSelector, secondSelector) {
+  return page.evaluate(({ firstSelector, secondSelector }) => {
+    const boxes = (selector) => [...document.querySelectorAll(selector)].map((element) => {
+      const box = element.getBBox();
+      return { x: box.x, y: box.y, width: box.width, height: box.height, text: element.textContent };
+    });
+    const overlaps = (a, b) => a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+    return boxes(firstSelector).flatMap((first) => boxes(secondSelector).filter((second) => overlaps(first, second)).map((second) => ({ first, second })));
+  }, { firstSelector, secondSelector });
+}
 test.beforeEach(async ({ page }) => {
   await mockApis(page);
 });
@@ -170,4 +180,35 @@ test("dark chart labels follow the readable theme color", async ({ page }, testI
   const weeklyFill = await page.locator(".chart-value").first().evaluate((element) => getComputedStyle(element).fill);
   expect(weeklyFill).toBe(bodyColor);
   await page.screenshot({ path: "test-results/visual/" + testInfo.project.name + "-dark-chart.png", fullPage: false, animations: "disabled" });
+});
+test("temperature and precipitation graphics keep separate label lanes", async ({ page }, testInfo) => {
+  await page.goto("/");
+  if (testInfo.project.name === "mobile") {
+    await page.locator('[data-mobile-tab="hourly"]').click();
+  } else {
+    await page.locator('.tab-button[data-tab="hourly"]').click();
+  }
+  await expect(page.locator(".hour-temp-value").first()).toBeVisible();
+  expect(await crossGroupOverlaps(page, ".hour-temp-value", ".hour-rain-bar")).toEqual([]);
+
+  if (testInfo.project.name === "mobile") {
+    await page.locator("#mobileMoreButton").click();
+    await page.locator('[data-mobile-tab="weekly"]').click();
+  } else {
+    await page.locator('.tab-button[data-tab="weekly"]').click();
+  }
+  await expect(page.locator(".chart-rain").first()).toBeVisible();
+  expect(await crossGroupOverlaps(page, "#tab-weekly .chart-value", "#tab-weekly .chart-rain")).toEqual([]);
+  expect(await crossGroupOverlaps(page, "#tab-weekly .chart-value.high", "#tab-weekly .chart-value.low")).toEqual([]);
+
+  if (testInfo.project.name === "mobile") {
+    await page.locator("#mobileMoreButton").click();
+    await page.locator('[data-mobile-tab="history"]').click();
+  } else {
+    await page.locator('.tab-button[data-tab="history"]').click();
+  }
+  await expect(page.locator("#historyChart .chart-rain").first()).toBeVisible();
+  expect(await crossGroupOverlaps(page, "#historyChart .chart-value", "#historyChart .chart-rain")).toEqual([]);
+  expect(await crossGroupOverlaps(page, "#historyChart .chart-value.high", "#historyChart .chart-value.low")).toEqual([]);
+  await page.screenshot({ path: "test-results/visual/" + testInfo.project.name + "-chart-spacing.png", fullPage: false, animations: "disabled" });
 });
