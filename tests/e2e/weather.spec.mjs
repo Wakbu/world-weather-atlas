@@ -81,8 +81,8 @@ test("tabs and official alerts expose their state", async ({ page }, testInfo) =
   await expect(page.locator("#officialAlertPanel")).toBeVisible();
   await expect(page.locator("#officialAlertTitle")).toContainText(/1|active/);
   if (testInfo.project.name === "mobile") {
-    await page.locator("#mobileViewSelect").selectOption("hourly");
-    await expect(page.locator("#mobileViewSelect")).toHaveValue("hourly");
+    await page.locator('[data-mobile-tab="hourly"]').click();
+    await expect(page.locator('[data-mobile-tab="hourly"]')).toHaveAttribute("aria-current", "page");
   } else {
     await page.locator('.tab-button[data-tab="hourly"]').click();
     await expect(page.locator('.tab-button[data-tab="hourly"]')).toHaveAttribute("aria-selected", "true");
@@ -92,12 +92,43 @@ test("tabs and official alerts expose their state", async ({ page }, testInfo) =
 test("mobile navigation and location details stay intentional", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile", "mobile-only interaction");
   await page.goto("/");
-  await expect(page.locator("#mobileViewSelect")).toBeVisible();
+  await expect(page.locator(".mobile-dock")).toBeVisible();
   await expect(page.locator(".tabbar")).toBeHidden();
-  await page.locator("#mobileViewSelect").selectOption("weekly");
+  await page.locator('[data-mobile-tab="hourly"]').click();
+  await expect(page.locator("#tab-hourly")).toBeVisible();
+  await page.locator("#mobileMoreButton").click();
+  await expect(page.locator("#mobileMoreMenu")).toBeVisible();
+  await page.locator('[data-mobile-tab="weekly"]').click();
   await expect(page.locator("#tab-weekly")).toBeVisible();
-  await page.locator("#mobileViewSelect").selectOption("overview");
+  await page.locator('[data-mobile-tab="overview"]').click();
   await expect(page.locator("#locationMetaPanel")).toBeHidden();
   await page.locator("#locationMetaToggle").click();
   await expect(page.locator("#locationMetaPanel")).toBeVisible();
+});
+
+test("dark theme keeps core surfaces readable", async ({ page }, testInfo) => {
+  await page.addInitScript(() => localStorage.setItem("weather-theme", "dark"));
+  await page.goto("/");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  const ratios = await page.evaluate(() => {
+    const rgb = (value) => (value.match(/[0-9.]+/g) || []).slice(0, 3).map(Number);
+    const luminance = (value) => {
+      const values = rgb(value).map((channel) => {
+        const normalized = channel / 255;
+        return normalized <= 0.03928 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
+      });
+      return values[0] * 0.2126 + values[1] * 0.7152 + values[2] * 0.0722;
+    };
+    const ratio = (foreground, background) => {
+      const [light, dark] = [luminance(foreground), luminance(background)].sort((a, b) => b - a);
+      return (light + 0.05) / (dark + 0.05);
+    };
+    return [["body", "body"], [".panel", ".panel"], [".advice-copy h2", ".advice-panel"], [".advice-copy > p:not(.advice-label)", ".advice-panel"], [".search input", ".search"]].map(([textSelector, surfaceSelector]) => {
+      const textStyle = getComputedStyle(document.querySelector(textSelector));
+      const surfaceStyle = getComputedStyle(document.querySelector(surfaceSelector));
+      return ratio(textStyle.color, surfaceStyle.backgroundColor);
+    });
+  });
+  expect(Math.min(...ratios)).toBeGreaterThanOrEqual(4.5);
+  await page.screenshot({ path: "test-results/visual/" + testInfo.project.name + "-dark.png", fullPage: false, animations: "disabled" });
 });

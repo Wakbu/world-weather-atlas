@@ -4,11 +4,11 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#0b6b61">
-    <link rel="manifest" href="manifest.webmanifest?v=20260719-21">
+    <link rel="manifest" href="manifest.webmanifest?v=20260719-22">
     <title>World Weather Atlas</title>
     <script>try{document.documentElement.dataset.theme=localStorage.getItem("weather-theme")||((matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light")}catch(e){}</script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
-    <link rel="stylesheet" href="styles.css?v=20260719-21">
+    <link rel="stylesheet" href="styles.css?v=20260719-22">
   </head>
   <body>
     <div id="offlineBanner" class="offline-banner" hidden>오프라인 상태입니다. 마지막으로 저장한 날씨를 표시합니다.</div>
@@ -64,18 +64,18 @@
         <button class="tab-button" type="button" data-tab="compare">도시 비교</button>
       </nav>
 
-      <label class="mobile-view-picker" for="mobileViewSelect">
-        <span>살펴볼 화면</span>
-        <select id="mobileViewSelect">
-          <option value="overview">오늘 요약</option>
-          <option value="location">위치 선택</option>
-          <option value="layers">기상 지도</option>
-          <option value="hourly">48시간 예보</option>
-          <option value="weekly">주간 예보</option>
-          <option value="history">과거 기록</option>
-          <option value="compare">도시 비교</option>
-        </select>
-      </label>
+      <nav class="mobile-dock" aria-label="모바일 주요 화면">
+        <button class="mobile-dock-button active" type="button" data-mobile-tab="overview" aria-current="page"><span aria-hidden="true">●</span><small>오늘</small></button>
+        <button class="mobile-dock-button" type="button" data-mobile-tab="location"><span aria-hidden="true">⌖</span><small>장소</small></button>
+        <button class="mobile-dock-button" type="button" data-mobile-tab="layers"><span aria-hidden="true">≋</span><small>지도</small></button>
+        <button class="mobile-dock-button" type="button" data-mobile-tab="hourly"><span aria-hidden="true">⌁</span><small>예보</small></button>
+        <button class="mobile-dock-button" id="mobileMoreButton" type="button" aria-expanded="false" aria-controls="mobileMoreMenu"><span aria-hidden="true">•••</span><small>더보기</small></button>
+      </nav>
+      <div id="mobileMoreMenu" class="mobile-more-menu" hidden>
+        <button type="button" data-mobile-tab="weekly"><strong>주간 예보</strong><span>앞으로 7일</span></button>
+        <button type="button" data-mobile-tab="history"><strong>과거 기록</strong><span>날짜 범위 조회</span></button>
+        <button type="button" data-mobile-tab="compare"><strong>도시 비교</strong><span>최대 3곳 비교</span></button>
+      </div>
 
       <section class="location-bar" aria-live="polite">
         <div class="location-primary">
@@ -230,6 +230,6 @@
     <template id="dayTemplate"><div class="day-row"><div class="day-label"><strong class="day-date"></strong><span class="day-desc"></span></div><div class="day-values"><span class="temp-range"></span><span class="rain"></span><span class="sun"></span></div></div></template>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 
-    <script src="script.js?v=20260719-21"></script>
+    <script src="script.js?v=20260719-22"></script>
   </body>
 </html>

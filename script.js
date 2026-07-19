@@ -26,7 +26,7 @@ const responseCache = new Map();
 const $ = (selector) => document.querySelector(selector);
 
 const elements = {
-  form: $("#searchForm"), input: $("#cityInput"), geoButton: $("#geoButton"), unitButton: $("#unitButton"), favoriteButton: $("#favoriteButton"), favoriteButtonLabel: $("#favoriteButtonLabel"), favoriteQuickList: $("#favoriteQuickList"), favoriteHelp: $("#favoriteHelp"), resetButton: $("#resetButton"), notifyButton: $("#notifyButton"), settingsButton: $("#settingsButton"), settingsPanel: $("#settingsPanel"), installButton: $("#installButton"), languageSelect: $("#languageSelect"), windUnitSelect: $("#windUnitSelect"), precipUnitSelect: $("#precipUnitSelect"), pressureUnitSelect: $("#pressureUnitSelect"), refreshButton: $("#refreshButton"), refreshStatus: $("#refreshStatus"), themeButton: $("#themeButton"), themeIcon: $("#themeIcon"), mobileViewSelect: $("#mobileViewSelect"), locationMetaToggle: $("#locationMetaToggle"), locationMetaPanel: $("#locationMetaPanel"), offlineBanner: $("#offlineBanner"), toast: $("#toast"),
+  form: $("#searchForm"), input: $("#cityInput"), geoButton: $("#geoButton"), unitButton: $("#unitButton"), favoriteButton: $("#favoriteButton"), favoriteButtonLabel: $("#favoriteButtonLabel"), favoriteQuickList: $("#favoriteQuickList"), favoriteHelp: $("#favoriteHelp"), resetButton: $("#resetButton"), notifyButton: $("#notifyButton"), settingsButton: $("#settingsButton"), settingsPanel: $("#settingsPanel"), installButton: $("#installButton"), languageSelect: $("#languageSelect"), windUnitSelect: $("#windUnitSelect"), precipUnitSelect: $("#precipUnitSelect"), pressureUnitSelect: $("#pressureUnitSelect"), refreshButton: $("#refreshButton"), refreshStatus: $("#refreshStatus"), themeButton: $("#themeButton"), themeIcon: $("#themeIcon"), mobileDockButtons: [...document.querySelectorAll("[data-mobile-tab]")], mobileMoreButton: $("#mobileMoreButton"), mobileMoreMenu: $("#mobileMoreMenu"), locationMetaToggle: $("#locationMetaToggle"), locationMetaPanel: $("#locationMetaPanel"), offlineBanner: $("#offlineBanner"), toast: $("#toast"),
   resultStatus: $("#resultStatus"), resultList: $("#resultList"), placeName: $("#placeName"), dateRange: $("#dateRange"),
   latitude: $("#latitude"), longitude: $("#longitude"), timezone: $("#timezone"), elevation: $("#elevation"),
   currentSummary: $("#currentSummary"), currentTemp: $("#currentTemp"), currentTime: $("#currentTime"), weatherIcon: $("#weatherIcon"),
@@ -286,7 +286,8 @@ function switchTab(tabName) {
   state.activeTab = tabName;
   elements.tabs.forEach((button) => { const active = button.dataset.tab === tabName; button.classList.toggle("active", active); button.setAttribute("aria-selected", String(active)); button.tabIndex = active ? 0 : -1; });
   elements.panels.forEach((panel) => panel.classList.toggle("active", panel.id === `tab-${tabName}`));
-  if (elements.mobileViewSelect) elements.mobileViewSelect.value = tabName;
+  elements.mobileDockButtons.forEach((button) => { const active = button.dataset.mobileTab === tabName; button.classList.toggle("active", active); if (active) button.setAttribute("aria-current", "page"); else button.removeAttribute("aria-current"); });
+  elements.mobileMoreButton?.classList.toggle("active", ["weekly", "history", "compare"].includes(tabName));
   if (tabName === "location" && weatherMap) setTimeout(() => weatherMap.invalidateSize(), 0);
   if (tabName === "overview" && rainRadarMap) setTimeout(() => rainRadarMap.invalidateSize(), 0);
   if (tabName === "layers") {
@@ -1690,7 +1691,7 @@ function applyLanguage() {
     "[data-tab=weekly]": ["주간", "Weekly"], "[data-tab=history]": ["과거", "History"], "[data-tab=compare]": ["도시 비교", "Compare"],
     "#geoButton": ["현재 위치", "My location"], "#resetButton": ["초기화", "Reset"], "#mapApplyButton": ["이 위치 날씨 보기", "Use this location"], "#searchForm button": ["검색", "Search"],
     ".lead": ["오늘의 하늘부터 지난 기록까지, 원하는 곳의 날씨를 편안하게 살펴보세요.", "From today's sky to past records, explore weather anywhere at your own pace."],
-    ".location-kicker": ["지금 보고 있는 곳", "Viewing now"], ".hero-kicker": ["지금 이곳의 하늘", "The sky here now"], ".mobile-view-picker > span": ["살펴볼 화면", "Choose a view"], "#locationMetaToggle": ["위치 상세", "Location details"],
+    ".location-kicker": ["지금 보고 있는 곳", "Viewing now"], ".hero-kicker": ["지금 이곳의 하늘", "The sky here now"], "#locationMetaToggle": ["위치 상세", "Location details"],
     ".saved-places-heading strong": ["즐겨찾기", "Favorites"], "#favoriteHelp": ["상단의 즐겨찾기 추가 버튼으로 현재 도시를 저장하세요.", "Use Add favorite above to save the current city."],
     ".advice-label": ["오늘의 준비", "TODAY'S CHECK"], ".air-quality-panel .panel-header h2": ["대기질과 건강", "Air quality & health"],
     "#tab-layers .panel-header h2": ["실시간 기상 지도", "Live weather map"], "#tab-hourly .panel-header h2": ["48시간 흐름", "48-hour outlook"], "#tab-weekly .panel-header h2": ["앞으로 7일", "Next 7 days"],
@@ -1701,7 +1702,9 @@ function applyLanguage() {
   };
   Object.entries(labels).forEach(([selector, pair]) => setText(selector, pair[0], pair[1]));
   setSeries(".layer-button", ["비구름", "구름량", "바람", "미세먼지 PM2.5"], ["Rain radar", "Clouds", "Wind", "Fine dust PM2.5"]);
-  setSeries("#mobileViewSelect option", ["오늘 요약", "위치 선택", "기상 지도", "48시간 예보", "주간 예보", "과거 기록", "도시 비교"], ["Today", "Choose location", "Weather map", "48-hour forecast", "Weekly forecast", "Past records", "Compare cities"]);
+  setSeries(".mobile-dock-button small", ["오늘", "장소", "지도", "예보", "더보기"], ["Today", "Places", "Map", "Forecast", "More"]);
+  setSeries(".mobile-more-menu strong", ["주간 예보", "과거 기록", "도시 비교"], ["Weekly", "History", "Compare"]);
+  setSeries(".mobile-more-menu button > span", ["앞으로 7일", "날짜 범위 조회", "최대 3곳 비교"], ["Next 7 days", "Date range", "Up to 3 cities"]);
   setSeries(".location-meta dt", ["위도", "경도", "시간대", "고도"], ["Latitude", "Longitude", "Timezone", "Elevation"]);
   setSeries(".metric-grid dt", ["체감", "습도", "강수", "풍속", "기압", "구름"], ["Feels like", "Humidity", "Rain", "Wind", "Pressure", "Clouds"]);
   setSeries(".air-quality-grid dt", ["통합 AQI", "초미세먼지 PM2.5", "미세먼지 PM10", "오존 O₃", "이산화질소 NO₂"], ["Overall AQI", "Fine dust PM2.5", "Dust PM10", "Ozone O₃", "Nitrogen dioxide NO₂"]);
@@ -1766,7 +1769,7 @@ function initializeConnectionState() {
 }
 
 function registerPwa() {
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("service-worker.js?v=20260719-21").catch(() => {});
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("service-worker.js?v=20260719-22").catch(() => {});
   let installPrompt;
   addEventListener("beforeinstallprompt", (event) => { event.preventDefault(); installPrompt = event; elements.installButton.hidden = false; });
   elements.installButton.addEventListener("click", async () => {
@@ -1848,7 +1851,16 @@ elements.settingsButton.addEventListener("click", () => {
   elements.settingsPanel.hidden = !elements.settingsPanel.hidden;
   elements.settingsButton.setAttribute("aria-expanded", String(!elements.settingsPanel.hidden));
 });
-elements.mobileViewSelect?.addEventListener("change", () => switchTab(elements.mobileViewSelect.value));
+elements.mobileDockButtons.forEach((button) => button.addEventListener("click", () => {
+  switchTab(button.dataset.mobileTab);
+  elements.mobileMoreMenu.hidden = true;
+  elements.mobileMoreButton.setAttribute("aria-expanded", "false");
+}));
+elements.mobileMoreButton?.addEventListener("click", () => {
+  const open = elements.mobileMoreButton.getAttribute("aria-expanded") === "true";
+  elements.mobileMoreButton.setAttribute("aria-expanded", String(!open));
+  elements.mobileMoreMenu.hidden = open;
+});
 elements.locationMetaToggle?.addEventListener("click", () => {
   const expanded = elements.locationMetaToggle.getAttribute("aria-expanded") === "true";
   elements.locationMetaToggle.setAttribute("aria-expanded", String(!expanded));

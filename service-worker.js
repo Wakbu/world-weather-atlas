@@ -1,16 +1,16 @@
-const CACHE_NAME = "world-weather-atlas-v21";
+const CACHE_NAME = "world-weather-atlas-v22";
 const ALERT_CACHE = "world-weather-atlas-alert-config";
 const ALERT_CONFIG_URL = new URL("./__alert-config__", self.registration.scope).toString();
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=20260719-21",
-  "./script.js?v=20260719-21",
-  "./manifest.webmanifest?v=20260719-21",
-  "./assets/advice-rain.png?v=20260719-21",
-  "./assets/advice-sun.png?v=20260719-21",
-  "./assets/advice-cold.png?v=20260719-21",
-  "./assets/advice-heat.png?v=20260719-21",
+  "./styles.css?v=20260719-22",
+  "./script.js?v=20260719-22",
+  "./manifest.webmanifest?v=20260719-22",
+  "./assets/advice-rain.png?v=20260719-22",
+  "./assets/advice-sun.png?v=20260719-22",
+  "./assets/advice-cold.png?v=20260719-22",
+  "./assets/advice-heat.png?v=20260719-22",
   "./assets/icon-192.png",
   "./assets/icon-512.png"
 ];

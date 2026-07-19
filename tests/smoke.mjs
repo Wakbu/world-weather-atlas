@@ -6,7 +6,7 @@ const script = readFileSync("script.js", "utf8");
 const css = readFileSync("styles.css", "utf8");
 const worker = readFileSync("service-worker.js", "utf8");
 
-for (const id of ["hazardPanel", "precipTimeline", "activityGrid", "moonPhase", "dataTrustDetails", "alertRain", "atmosphereMap", "officialAlertPanel", "backgroundAlertStatus", "mobileViewSelect", "locationMetaToggle", "locationMetaPanel"]) {
+for (const id of ["hazardPanel", "precipTimeline", "activityGrid", "moonPhase", "dataTrustDetails", "alertRain", "atmosphereMap", "officialAlertPanel", "backgroundAlertStatus", "mobileMoreButton", "mobileMoreMenu", "locationMetaToggle", "locationMetaPanel"]) {
   assert.match(html, new RegExp(`id=["']${id}["']`), `missing #${id}`);
 }
 
