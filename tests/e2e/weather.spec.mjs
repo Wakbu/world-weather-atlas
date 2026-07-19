@@ -199,6 +199,7 @@ test("temperature and precipitation graphics keep separate label lanes", async (
   }
   await expect(page.locator(".chart-rain").first()).toBeVisible();
   expect(await crossGroupOverlaps(page, "#tab-weekly .chart-value", "#tab-weekly .chart-rain")).toEqual([]);
+  expect(await crossGroupOverlaps(page, "#tab-weekly .chart-rain", "#tab-weekly .rain-bar")).toEqual([]);
   expect(await crossGroupOverlaps(page, "#tab-weekly .chart-value.high", "#tab-weekly .chart-value.low")).toEqual([]);
 
   if (testInfo.project.name === "mobile") {
@@ -208,7 +209,10 @@ test("temperature and precipitation graphics keep separate label lanes", async (
     await page.locator('.tab-button[data-tab="history"]').click();
   }
   await expect(page.locator("#historyChart .chart-rain").first()).toBeVisible();
+  const historySvg = await page.locator("#historyChart svg").boundingBox();
+  expect(historySvg.width / historySvg.height).toBeCloseTo(840 / 330, 1);
   expect(await crossGroupOverlaps(page, "#historyChart .chart-value", "#historyChart .chart-rain")).toEqual([]);
+  expect(await crossGroupOverlaps(page, "#historyChart .chart-rain", "#historyChart .rain-bar")).toEqual([]);
   expect(await crossGroupOverlaps(page, "#historyChart .chart-value.high", "#historyChart .chart-value.low")).toEqual([]);
-  await page.screenshot({ path: "test-results/visual/" + testInfo.project.name + "-chart-spacing.png", fullPage: false, animations: "disabled" });
+  await page.locator("#historyChart").screenshot({ path: "test-results/visual/" + testInfo.project.name + "-chart-spacing.png", animations: "disabled" });
 });

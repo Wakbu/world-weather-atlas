@@ -1117,8 +1117,13 @@ function chartTemperatureLabelY(pointY, lineIndex, lanes) {
     : Math.min(lanes.tempBottom - 4, pointY + 20);
 }
 
+function chartRainBarHeight(value, maxRain, lanes) {
+  const labelSpace = 22;
+  return (value / maxRain) * Math.max(1, lanes.rainHeight - labelSpace);
+}
+
 function chartRainLabelY(barTop, lanes) {
-  return Math.max(lanes.rainTop + 12, barTop - 7);
+  return Math.max(lanes.rainTop + 13, barTop - 7);
 }
 
 function appendRainLane(svg, left, width, lanes) {
@@ -1149,7 +1154,7 @@ function renderWeeklyChart(daily) {
 
   appendRainLane(svg, left, plotWidth, lanes);
   dates.forEach((date, index) => {
-    const barHeight = (rain[index] / maxRain) * lanes.rainHeight;
+    const barHeight = chartRainBarHeight(rain[index], maxRain, lanes);
     const day = new Intl.DateTimeFormat(state.language === "en" ? "en-US" : "ko-KR", { weekday: "short" }).format(new Date(date + "T00:00:00"));
     const barWidth = Math.max(8, Math.min(28, plotWidth / dates.length * 0.55));
     svg.append(svgNodeWithTitle("rect", { x: x(index) - barWidth / 2, y: lanes.rainBottom - barHeight, width: barWidth, height: barHeight, rx: 4, class: "rain-bar" }, formatDate(date) + " · 강수 " + displayPrecip(rain[index])));
@@ -1199,7 +1204,7 @@ function renderHistoryChart(daily) {
 
   appendRainLane(svg, left, plotWidth, lanes);
   dates.forEach((date, index) => {
-    const barHeight = (rain[index] / maxRain) * lanes.rainHeight;
+    const barHeight = chartRainBarHeight(rain[index], maxRain, lanes);
     const label = new Intl.DateTimeFormat(state.language === "en" ? "en-US" : "ko-KR", { weekday: "short" }).format(new Date(date + "T00:00:00"));
     const barWidth = Math.max(8, Math.min(28, plotWidth / dates.length * 0.55));
     svg.append(svgNodeWithTitle("rect", { x: x(index) - barWidth / 2, y: lanes.rainBottom - barHeight, width: barWidth, height: barHeight, rx: 4, class: "rain-bar" }, formatDate(date) + " · 강수 " + displayPrecip(rain[index])));
@@ -1815,7 +1820,7 @@ function registerPwa() {
       reloading = true;
       location.reload();
     });
-    navigator.serviceWorker.register("service-worker.js?v=20260719-26").then((registration) => registration.update()).catch(() => {});
+    navigator.serviceWorker.register("service-worker.js?v=20260719-27").then((registration) => registration.update()).catch(() => {});
   }
   let installPrompt;
   addEventListener("beforeinstallprompt", (event) => { event.preventDefault(); installPrompt = event; elements.installButton.hidden = false; });
