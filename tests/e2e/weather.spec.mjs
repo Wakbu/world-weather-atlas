@@ -76,11 +76,28 @@ test("overview is readable without horizontal overflow", async ({ page }, testIn
   await page.screenshot({ path: "test-results/visual/" + testInfo.project.name + "-overview.png", fullPage: false, animations: "disabled" });
 });
 
-test("tabs and official alerts expose their state", async ({ page }) => {
+test("tabs and official alerts expose their state", async ({ page }, testInfo) => {
   await page.goto("/?lat=40.7128&lon=-74.0060&name=New%20York");
   await expect(page.locator("#officialAlertPanel")).toBeVisible();
   await expect(page.locator("#officialAlertTitle")).toContainText(/1|active/);
-  await page.getByRole("tab", { name: /48시간|48 hours/ }).click();
+  if (testInfo.project.name === "mobile") {
+    await page.locator("#mobileViewSelect").selectOption("hourly");
+    await expect(page.locator("#mobileViewSelect")).toHaveValue("hourly");
+  } else {
+    await page.locator('.tab-button[data-tab="hourly"]').click();
+    await expect(page.locator('.tab-button[data-tab="hourly"]')).toHaveAttribute("aria-selected", "true");
+  }
   await expect(page.locator("#tab-hourly")).toBeVisible();
-  await expect(page.getByRole("tab", { name: /48시간|48 hours/ })).toHaveAttribute("aria-selected", "true");
+});
+test("mobile navigation and location details stay intentional", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile", "mobile-only interaction");
+  await page.goto("/");
+  await expect(page.locator("#mobileViewSelect")).toBeVisible();
+  await expect(page.locator(".tabbar")).toBeHidden();
+  await page.locator("#mobileViewSelect").selectOption("weekly");
+  await expect(page.locator("#tab-weekly")).toBeVisible();
+  await page.locator("#mobileViewSelect").selectOption("overview");
+  await expect(page.locator("#locationMetaPanel")).toBeHidden();
+  await page.locator("#locationMetaToggle").click();
+  await expect(page.locator("#locationMetaPanel")).toBeVisible();
 });
