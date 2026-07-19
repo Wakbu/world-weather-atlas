@@ -1,16 +1,16 @@
-const CACHE_NAME = "world-weather-atlas-v22";
+const CACHE_NAME = "world-weather-atlas-v23";
 const ALERT_CACHE = "world-weather-atlas-alert-config";
 const ALERT_CONFIG_URL = new URL("./__alert-config__", self.registration.scope).toString();
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=20260719-22",
-  "./script.js?v=20260719-22",
-  "./manifest.webmanifest?v=20260719-22",
-  "./assets/advice-rain.png?v=20260719-22",
-  "./assets/advice-sun.png?v=20260719-22",
-  "./assets/advice-cold.png?v=20260719-22",
-  "./assets/advice-heat.png?v=20260719-22",
+  "./styles.css?v=20260719-23",
+  "./script.js?v=20260719-23",
+  "./manifest.webmanifest?v=20260719-23",
+  "./assets/advice-rain.png?v=20260719-23",
+  "./assets/advice-sun.png?v=20260719-23",
+  "./assets/advice-cold.png?v=20260719-23",
+  "./assets/advice-heat.png?v=20260719-23",
   "./assets/icon-192.png",
   "./assets/icon-512.png"
 ];
@@ -30,10 +30,12 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET" || new URL(event.request.url).origin !== self.location.origin) return;
   event.respondWith(
-    fetch(event.request)
+    fetch(event.request, { cache: "no-store" })
       .then((response) => {
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        if (response.ok) {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        }
         return response;
       })
       .catch(() => caches.match(event.request).then((cached) => {

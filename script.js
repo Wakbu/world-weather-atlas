@@ -1689,7 +1689,7 @@ function applyLanguage() {
   const labels = {
     "[data-tab=overview]": ["요약", "Overview"], "[data-tab=location]": ["위치 선택", "Location"], "[data-tab=layers]": ["기상 지도", "Weather map"], "[data-tab=hourly]": ["48시간", "48 hours"],
     "[data-tab=weekly]": ["주간", "Weekly"], "[data-tab=history]": ["과거", "History"], "[data-tab=compare]": ["도시 비교", "Compare"],
-    "#geoButton": ["현재 위치", "My location"], "#resetButton": ["초기화", "Reset"], "#mapApplyButton": ["이 위치 날씨 보기", "Use this location"], "#searchForm button": ["검색", "Search"],
+    "#geoButton": ["현재 위치", "My location"], "#settingsButton span:last-child": ["설정", "Settings"], "#resetButton": ["초기화", "Reset"], "#mapApplyButton": ["이 위치 날씨 보기", "Use this location"], "#searchForm button": ["검색", "Search"],
     ".lead": ["오늘의 하늘부터 지난 기록까지, 원하는 곳의 날씨를 편안하게 살펴보세요.", "From today's sky to past records, explore weather anywhere at your own pace."],
     ".location-kicker": ["지금 보고 있는 곳", "Viewing now"], ".hero-kicker": ["지금 이곳의 하늘", "The sky here now"], "#locationMetaToggle": ["위치 상세", "Location details"],
     ".saved-places-heading strong": ["즐겨찾기", "Favorites"], "#favoriteHelp": ["상단의 즐겨찾기 추가 버튼으로 현재 도시를 저장하세요.", "Use Add favorite above to save the current city."],
@@ -1705,6 +1705,7 @@ function applyLanguage() {
   setSeries(".mobile-dock-button small", ["오늘", "장소", "지도", "예보", "더보기"], ["Today", "Places", "Map", "Forecast", "More"]);
   setSeries(".mobile-more-menu strong", ["주간 예보", "과거 기록", "도시 비교"], ["Weekly", "History", "Compare"]);
   setSeries(".mobile-more-menu button > span", ["앞으로 7일", "날짜 범위 조회", "최대 3곳 비교"], ["Next 7 days", "Date range", "Up to 3 cities"]);
+  setSeries(".utility-settings button > span:last-child", ["강수 알림", "새로고침", "테마 전환", "앱 설치"], ["Rain alerts", "Refresh", "Switch theme", "Install app"]);
   setSeries(".location-meta dt", ["위도", "경도", "시간대", "고도"], ["Latitude", "Longitude", "Timezone", "Elevation"]);
   setSeries(".metric-grid dt", ["체감", "습도", "강수", "풍속", "기압", "구름"], ["Feels like", "Humidity", "Rain", "Wind", "Pressure", "Clouds"]);
   setSeries(".air-quality-grid dt", ["통합 AQI", "초미세먼지 PM2.5", "미세먼지 PM10", "오존 O₃", "이산화질소 NO₂"], ["Overall AQI", "Fine dust PM2.5", "Dust PM10", "Ozone O₃", "Nitrogen dioxide NO₂"]);
@@ -1769,7 +1770,16 @@ function initializeConnectionState() {
 }
 
 function registerPwa() {
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("service-worker.js?v=20260719-22").catch(() => {});
+  if ("serviceWorker" in navigator) {
+    let reloading = false;
+    const hadController = Boolean(navigator.serviceWorker.controller);
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (!hadController || reloading) return;
+      reloading = true;
+      location.reload();
+    });
+    navigator.serviceWorker.register("service-worker.js?v=20260719-23").then((registration) => registration.update()).catch(() => {});
+  }
   let installPrompt;
   addEventListener("beforeinstallprompt", (event) => { event.preventDefault(); installPrompt = event; elements.installButton.hidden = false; });
   elements.installButton.addEventListener("click", async () => {

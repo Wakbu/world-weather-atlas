@@ -4,11 +4,11 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#0b6b61">
-    <link rel="manifest" href="manifest.webmanifest?v=20260719-22">
+    <link rel="manifest" href="manifest.webmanifest?v=20260719-23">
     <title>World Weather Atlas</title>
     <script>try{document.documentElement.dataset.theme=localStorage.getItem("weather-theme")||((matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light")}catch(e){}</script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
-    <link rel="stylesheet" href="styles.css?v=20260719-22">
+    <link rel="stylesheet" href="styles.css?v=20260719-23">
   </head>
   <body>
     <div id="offlineBanner" class="offline-banner" hidden>오프라인 상태입니다. 마지막으로 저장한 날씨를 표시합니다.</div>
@@ -32,11 +32,7 @@
           <div class="quick-actions" aria-label="빠른 작업">
             <button class="ghost-button" id="geoButton" type="button">현재 위치</button>
             <button class="ghost-button favorite-button" id="favoriteButton" type="button" aria-label="즐겨찾기 추가" aria-pressed="false"><span class="favorite-icon" aria-hidden="true">☆</span><span id="favoriteButtonLabel">즐겨찾기 추가</span></button>
-            <button class="ghost-button icon-button" id="notifyButton" type="button" aria-label="강수 알림 켜기" title="강수 알림"><span aria-hidden="true">!</span></button>
-            <button class="ghost-button icon-button" id="refreshButton" type="button" aria-label="날씨 새로고침" title="날씨 새로고침"><span aria-hidden="true">↻</span></button>
-            <button class="ghost-button icon-button" id="settingsButton" type="button" aria-label="표시 설정" title="표시 설정"><span aria-hidden="true">⚙</span></button>
-            <button class="ghost-button icon-button theme-button" id="themeButton" type="button" aria-label="다크 모드로 전환" title="다크 모드"><span id="themeIcon" aria-hidden="true">◐</span></button>
-            <button class="ghost-button icon-button" id="installButton" type="button" aria-label="앱 설치" title="앱 설치" hidden><span aria-hidden="true">↓</span></button>
+            <button class="ghost-button settings-trigger" id="settingsButton" type="button" aria-label="설정 열기" aria-expanded="false"><span aria-hidden="true">⚙</span><span>설정</span></button>
           </div>
           <div id="settingsPanel" class="settings-panel" hidden>
             <div class="settings-grid">
@@ -45,6 +41,12 @@
               <label>강수<select id="precipUnitSelect"><option value="mm">mm</option><option value="inch">inch</option></select></label>
               <label>기압<select id="pressureUnitSelect"><option value="hpa">hPa</option><option value="inhg">inHg</option></select></label>
               <label class="toggle-setting"><input id="colorSafeToggle" type="checkbox"> 색각 친화 팔레트</label>
+            </div>
+            <div class="utility-settings" aria-label="날씨 도구">
+              <button class="ghost-button" id="notifyButton" type="button"><span aria-hidden="true">!</span><span>강수 알림</span></button>
+              <button class="ghost-button" id="refreshButton" type="button"><span aria-hidden="true">↻</span><span>새로고침</span></button>
+              <button class="ghost-button theme-button" id="themeButton" type="button"><span id="themeIcon" aria-hidden="true">◐</span><span>테마 전환</span></button>
+              <button class="ghost-button" id="installButton" type="button" hidden><span aria-hidden="true">↓</span><span>앱 설치</span></button>
             </div>
             <div class="settings-actions">
               <button class="ghost-button" id="unitButton" type="button" aria-pressed="false">°F 보기</button>
@@ -230,6 +232,6 @@
     <template id="dayTemplate"><div class="day-row"><div class="day-label"><strong class="day-date"></strong><span class="day-desc"></span></div><div class="day-values"><span class="temp-range"></span><span class="rain"></span><span class="sun"></span></div></div></template>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 
-    <script src="script.js?v=20260719-22"></script>
+    <script src="script.js?v=20260719-23"></script>
   </body>
 </html>

@@ -93,6 +93,10 @@ test("mobile navigation and location details stay intentional", async ({ page },
   test.skip(testInfo.project.name !== "mobile", "mobile-only interaction");
   await page.goto("/");
   await expect(page.locator(".mobile-dock")).toBeVisible();
+  await page.locator("#settingsButton").click();
+  await expect(page.locator("#settingsPanel")).toBeVisible();
+  await expect(page.locator("#refreshButton")).toBeVisible();
+  await page.locator("#settingsButton").click();
   await expect(page.locator(".tabbar")).toBeHidden();
   await page.locator('[data-mobile-tab="hourly"]').click();
   await expect(page.locator("#tab-hourly")).toBeVisible();

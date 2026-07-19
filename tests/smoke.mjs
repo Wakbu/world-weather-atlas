@@ -16,6 +16,9 @@ for (const fn of ["renderHazards", "renderPrecipTimeline", "renderActivities", "
 
 assert.match(css, /@media\s*\(max-width:\s*720px\)/, "mobile breakpoint missing");
 assert.match(css, /prefers-reduced-motion/, "reduced-motion support missing");
+assert.equal((css.match(/html\[data-theme="dark"\]\{/g) || []).length, 1, "dark theme rules must not be duplicated");
+assert.equal((css.match(/@media\(max-width:720px\)/g) || []).length, 1, "mobile rules must not be duplicated");
+assert.match(worker, /cache: "no-store"/, "service worker must check the network for current assets");
 assert.match(script, /L\.imageOverlay/, "continuous raster renderer missing");
 assert.doesNotMatch(script, /L\.rectangle/, "block grid renderer must not return");
 assert.doesNotMatch(html, /leaflet\.heat/, "radial heatmap dependency must not return");
