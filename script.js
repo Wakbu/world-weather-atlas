@@ -1692,7 +1692,7 @@ function applyLanguage() {
     "#geoButton": ["현재 위치", "My location"], "#settingsButton span:last-child": ["설정", "Settings"], "#resetButton": ["초기화", "Reset"], "#mapApplyButton": ["이 위치 날씨 보기", "Use this location"], "#searchForm button": ["검색", "Search"],
     ".lead": ["오늘의 하늘부터 지난 기록까지, 원하는 곳의 날씨를 편안하게 살펴보세요.", "From today's sky to past records, explore weather anywhere at your own pace."],
     ".location-kicker": ["지금 보고 있는 곳", "Viewing now"], ".hero-kicker": ["지금 이곳의 하늘", "The sky here now"], "#locationMetaToggle": ["위치 상세", "Location details"],
-    ".saved-places-heading strong": ["즐겨찾기", "Favorites"], "#favoriteHelp": ["상단의 즐겨찾기 추가 버튼으로 현재 도시를 저장하세요.", "Use Add favorite above to save the current city."],
+    ".saved-places-heading strong": ["즐겨찾는 도시", "Favorite cities"], "#favoriteHelp": ["자주 보는 도시를 빠르게 전환하세요.", "Switch between your usual cities."],
     ".advice-label": ["오늘의 준비", "TODAY'S CHECK"], ".air-quality-panel .panel-header h2": ["대기질과 건강", "Air quality & health"],
     "#tab-layers .panel-header h2": ["실시간 기상 지도", "Live weather map"], "#tab-hourly .panel-header h2": ["48시간 흐름", "48-hour outlook"], "#tab-weekly .panel-header h2": ["앞으로 7일", "Next 7 days"],
     "#tab-history .panel-header h2": ["과거 날씨 조회", "Weather history"], "#tab-compare .panel-header h2": ["도시 날씨 비교", "City comparison"],
@@ -1778,7 +1778,7 @@ function registerPwa() {
       reloading = true;
       location.reload();
     });
-    navigator.serviceWorker.register("service-worker.js?v=20260719-23").then((registration) => registration.update()).catch(() => {});
+    navigator.serviceWorker.register("service-worker.js?v=20260719-24").then((registration) => registration.update()).catch(() => {});
   }
   let installPrompt;
   addEventListener("beforeinstallprompt", (event) => { event.preventDefault(); installPrompt = event; elements.installButton.hidden = false; });

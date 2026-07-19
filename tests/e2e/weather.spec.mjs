@@ -136,3 +136,14 @@ test("dark theme keeps core surfaces readable", async ({ page }, testInfo) => {
   expect(Math.min(...ratios)).toBeGreaterThanOrEqual(4.5);
   await page.screenshot({ path: "test-results/visual/" + testInfo.project.name + "-dark.png", fullPage: false, animations: "disabled" });
 });
+test("desktop favorites form a compact city rail", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "desktop-only layout");
+  await page.goto("/");
+  await expect(page.locator(".saved-places-bar")).toBeVisible();
+  await expect(page.locator(".favorite-empty")).toBeVisible();
+  await page.locator("#favoriteButton").click();
+  await expect(page.locator(".favorite-quick-list .place-chip")).toHaveCount(1);
+  const rail = await page.locator(".saved-places-bar").boundingBox();
+  expect(rail.height).toBeLessThanOrEqual(90);
+  await page.screenshot({ path: "test-results/visual/desktop-favorites.png", fullPage: false, animations: "disabled" });
+});
