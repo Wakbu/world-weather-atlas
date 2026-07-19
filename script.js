@@ -1778,7 +1778,7 @@ function registerPwa() {
       reloading = true;
       location.reload();
     });
-    navigator.serviceWorker.register("service-worker.js?v=20260719-24").then((registration) => registration.update()).catch(() => {});
+    navigator.serviceWorker.register("service-worker.js?v=20260719-25").then((registration) => registration.update()).catch(() => {});
   }
   let installPrompt;
   addEventListener("beforeinstallprompt", (event) => { event.preventDefault(); installPrompt = event; elements.installButton.hidden = false; });

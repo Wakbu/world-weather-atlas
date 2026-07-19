@@ -147,3 +147,27 @@ test("desktop favorites form a compact city rail", async ({ page }, testInfo) =>
   expect(rail.height).toBeLessThanOrEqual(90);
   await page.screenshot({ path: "test-results/visual/desktop-favorites.png", fullPage: false, animations: "disabled" });
 });
+test("dark chart labels follow the readable theme color", async ({ page }, testInfo) => {
+  await page.addInitScript(() => localStorage.setItem("weather-theme", "dark"));
+  await page.goto("/");
+  if (testInfo.project.name === "mobile") {
+    await page.locator('[data-mobile-tab="hourly"]').click();
+  } else {
+    await page.locator('.tab-button[data-tab="hourly"]').click();
+  }
+  await expect(page.locator(".hour-temp-value").first()).toBeVisible();
+  const bodyColor = await page.locator("body").evaluate((element) => getComputedStyle(element).color);
+  const hourlyFill = await page.locator(".hour-temp-value").first().evaluate((element) => getComputedStyle(element).fill);
+  expect(hourlyFill).toBe(bodyColor);
+
+  if (testInfo.project.name === "mobile") {
+    await page.locator("#mobileMoreButton").click();
+    await page.locator('[data-mobile-tab="weekly"]').click();
+  } else {
+    await page.locator('.tab-button[data-tab="weekly"]').click();
+  }
+  await expect(page.locator(".chart-value").first()).toBeVisible();
+  const weeklyFill = await page.locator(".chart-value").first().evaluate((element) => getComputedStyle(element).fill);
+  expect(weeklyFill).toBe(bodyColor);
+  await page.screenshot({ path: "test-results/visual/" + testInfo.project.name + "-dark-chart.png", fullPage: false, animations: "disabled" });
+});
