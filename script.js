@@ -4,6 +4,7 @@ const API = {
   archive: "https://archive-api.open-meteo.com/v1/archive",
   radar: "https://api.rainviewer.com/public/weather-maps.json",
   air: "https://air-quality-api.open-meteo.com/v1/air-quality",
+  nwsAlerts: "https://api.weather.gov/alerts/active",
 };
 
 const state = { loading: false, unit: "c", windUnit: "kmh", precipUnit: "mm", pressureUnit: "hpa", language: "ko", colorSafe: false, places: [], selectedPlace: null, weather: null, airQuality: null, favorites: [], recentPlaces: [], compareIds: [], alertRules: {}, dataMeta: null, mapPoint: { latitude: 37.5665, longitude: 126.9780 }, lastRefreshAt: 0, refreshTimer: null, radarMetadata: null, activeTab: "overview", notificationEnabled: false, lastRainNotice: "", weatherLayer: "radar" };
@@ -18,6 +19,10 @@ let atmosphereRadarLayer;
 let atmosphereMarker;
 let atmosphereMoveTimer;
 let atmosphereLoadId = 0;
+let placeLoadId = 0;
+let placeRequestController;
+let atmosphereRequestController;
+const responseCache = new Map();
 const $ = (selector) => document.querySelector(selector);
 
 const elements = {
@@ -30,7 +35,7 @@ const elements = {
   sunrise: $("#sunrise"), sunset: $("#sunset"), daylight: $("#daylight"), uvIndex: $("#uvIndex"), visibility: $("#visibility"), weeklySummary: $("#weeklySummary"),
   adviceVisual: $("#adviceVisual"), adviceTitle: $("#adviceTitle"), adviceText: $("#adviceText"), adviceMeta: $("#adviceMeta"), rainRadarSection: $("#rainRadarSection"), rainRadarMap: $("#rainRadarMap"), radarTime: $("#radarTime"), airQualityStatus: $("#airQualityStatus"), airQualityIndex: $("#airQualityIndex"), airQualityLevel: $("#airQualityLevel"), pm25: $("#pm25"), pm10: $("#pm10"), ozone: $("#ozone"), nitrogenDioxide: $("#nitrogenDioxide"),
   mapCoordinates: $("#mapCoordinates"), mapPlaceLabel: $("#mapPlaceLabel"), mapApplyButton: $("#mapApplyButton"), presetList: $("#presetList"), favoriteList: $("#favoriteList"), recentList: $("#recentList"), compareSelector: $("#compareSelector"), compareGrid: $("#compareGrid"), compareStatus: $("#compareStatus"), weeklyChart: $("#weeklyChart"), historyChart: $("#historyChart"), historySummary: $("#historySummary"), historyRangeForm: $("#historyRangeForm"), historyStart: $("#historyStart"), historyEnd: $("#historyEnd"), historyRangeStatus: $("#historyRangeStatus"),
-  atmosphereMap: $("#atmosphereMap"), atmosphereStatus: $("#atmosphereStatus"), atmosphereLegend: $("#atmosphereLegend"), layerRefreshButton: $("#layerRefreshButton"), layerButtons: document.querySelectorAll("[data-weather-layer]"), hazardPanel: $("#hazardPanel"), hazardTitle: $("#hazardTitle"), hazardList: $("#hazardList"), precipTimeline: $("#precipTimeline"), precipTimelineSummary: $("#precipTimelineSummary"), activityGrid: $("#activityGrid"), moonPhase: $("#moonPhase"), sunProgress: $("#sunProgress"), dataTrustLevel: $("#dataTrustLevel"), dataTrustDetails: $("#dataTrustDetails"), alertPlaceName: $("#alertPlaceName"), alertRain: $("#alertRain"), alertSnow: $("#alertSnow"), alertHeat: $("#alertHeat"), alertAir: $("#alertAir"), saveAlertSettings: $("#saveAlertSettings"), colorSafeToggle: $("#colorSafeToggle"),
+  atmosphereMap: $("#atmosphereMap"), atmosphereStatus: $("#atmosphereStatus"), atmosphereLegend: $("#atmosphereLegend"), layerRefreshButton: $("#layerRefreshButton"), layerButtons: document.querySelectorAll("[data-weather-layer]"), hazardPanel: $("#hazardPanel"), hazardTitle: $("#hazardTitle"), hazardList: $("#hazardList"), officialAlertPanel: $("#officialAlertPanel"), officialAlertTitle: $("#officialAlertTitle"), officialAlertList: $("#officialAlertList"), officialAlertNote: $("#officialAlertNote"), precipTimeline: $("#precipTimeline"), precipTimelineSummary: $("#precipTimelineSummary"), activityGrid: $("#activityGrid"), moonPhase: $("#moonPhase"), sunProgress: $("#sunProgress"), dataTrustLevel: $("#dataTrustLevel"), dataTrustDetails: $("#dataTrustDetails"), alertPlaceName: $("#alertPlaceName"), alertRain: $("#alertRain"), alertSnow: $("#alertSnow"), alertHeat: $("#alertHeat"), alertAir: $("#alertAir"), saveAlertSettings: $("#saveAlertSettings"), backgroundAlertStatus: $("#backgroundAlertStatus"), colorSafeToggle: $("#colorSafeToggle"),
   tabs: document.querySelectorAll(".tab-button"), panels: document.querySelectorAll(".tab-panel"),
   resultTemplate: $("#resultTemplate"), hourTemplate: $("#hourTemplate"), dayTemplate: $("#dayTemplate"),
 };
@@ -95,15 +100,27 @@ function weatherText(code) {
 }
 
 function formatDate(isoDate) {
-  return new Intl.DateTimeFormat(state.language === "en" ? "en-US" : "ko-KR", { month: "short", day: "numeric", weekday: "short" }).format(new Date(`${isoDate}T00:00:00`));
+  return new Intl.DateTimeFormat(state.language === "en" ? "en-US" : "ko-KR", { month: "short", day: "numeric", weekday: "short", timeZone: "UTC" }).format(new Date(`${isoDate}T12:00:00Z`));
+}
+
+function weatherDate(value) {
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}T/.test(value) && !/(?:Z|[+-]\d{2}:\d{2})$/.test(value)) {
+    const offset = Number(state.weather?.forecast?.utc_offset_seconds || 0);
+    return new Date(Date.parse(value + "Z") - offset * 1000);
+  }
+  return new Date(value);
+}
+
+function weatherFormatter(options) {
+  return new Intl.DateTimeFormat(state.language === "en" ? "en-US" : "ko-KR", { ...options, timeZone: state.weather?.forecast?.timezone || undefined });
 }
 
 function formatTime(value) {
-  return new Intl.DateTimeFormat(state.language === "en" ? "en-US" : "ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+  return weatherFormatter({ month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(weatherDate(value));
 }
 
 function formatHour(value) {
-  return new Intl.DateTimeFormat(state.language === "en" ? "en-US" : "ko-KR", { weekday: "short", hour: "2-digit" }).format(new Date(value));
+  return weatherFormatter({ weekday: "short", hour: "2-digit" }).format(weatherDate(value));
 }
 
 function displayTemp(value) {
@@ -158,10 +175,15 @@ function buildUrl(base, params) {
   return url.toString();
 }
 
-async function fetchJson(url) {
-  const response = await fetch(url);
+async function fetchJson(url, { signal, ttl = 5 * 60 * 1000, headers } = {}) {
+  const cached = responseCache.get(url);
+  if (cached && Date.now() - cached.savedAt < ttl) return cached.data;
+  const response = await fetch(url, { signal, headers });
   if (!response.ok) throw new Error(`요청 실패: ${response.status}`);
-  return response.json();
+  const data = await response.json();
+  responseCache.set(url, { data, savedAt: Date.now() });
+  if (responseCache.size > 80) responseCache.delete(responseCache.keys().next().value);
+  return data;
 }
 
 function normalizePlace(place, fallbackName) {
@@ -173,6 +195,7 @@ function normalizePlace(place, fallbackName) {
     longitude: place.longitude,
     timezone: place.timezone || "auto",
     elevation: place.elevation,
+    countryCode: place.country_code || place.countryCode || "",
   };
 }
 
@@ -182,7 +205,7 @@ async function searchPlaces(query) {
   return data.results.map((place) => normalizePlace(place, query));
 }
 
-async function fetchAirQuality(place) {
+async function fetchAirQuality(place, signal) {
   return fetchJson(buildUrl(API.air, {
     latitude: place.latitude,
     longitude: place.longitude,
@@ -190,10 +213,28 @@ async function fetchAirQuality(place) {
     current: ["us_aqi", "pm10", "pm2_5", "ozone", "nitrogen_dioxide"],
     hourly: ["us_aqi", "pm10", "pm2_5"],
     forecast_days: 3,
-  }));
+  }), { signal });
 }
 
-async function fetchWeather(place) {
+function isNwsSupported(place) {
+  if (place.countryCode && place.countryCode.toUpperCase() !== "US") return false;
+  const lat = Number(place.latitude);
+  const lon = Number(place.longitude);
+  return (lat >= 24 && lat <= 50 && lon >= -125 && lon <= -66)
+    || (lat >= 51 && lat <= 72 && lon >= -180 && lon <= -129)
+    || (lat >= 18 && lat <= 23 && lon >= -161 && lon <= -154)
+    || (lat >= 17 && lat <= 19 && lon >= -68 && lon <= -64)
+    || (lat >= 13 && lat <= 21 && lon >= 140 && lon <= 146);
+}
+
+async function fetchOfficialAlerts(place, signal) {
+  if (!isNwsSupported(place)) return { supported: false, features: [] };
+  const url = buildUrl(API.nwsAlerts, { point: Number(place.latitude).toFixed(4) + "," + Number(place.longitude).toFixed(4), status: "actual" });
+  const data = await fetchJson(url, { signal, ttl: 5 * 60 * 1000, headers: { Accept: "application/geo+json" } });
+  return { supported: true, features: data.features || [] };
+}
+
+async function fetchWeather(place, signal) {
   const now = new Date();
   const shared = { latitude: place.latitude, longitude: place.longitude, timezone: "auto" };
   const forecastUrl = buildUrl(API.forecast, {
@@ -209,15 +250,16 @@ async function fetchWeather(place) {
     end_date: toIsoDate(addDays(now, -1)),
     daily: ["weather_code", "temperature_2m_max", "temperature_2m_min", "precipitation_sum", "wind_speed_10m_max"],
   });
-  const [forecast, archive, airQuality] = await Promise.all([
-    fetchJson(forecastUrl),
-    fetchJson(archiveUrl).catch(() => null),
-    fetchAirQuality(place).catch(() => null),
+  const [forecast, archive, airQuality, officialAlerts] = await Promise.all([
+    fetchJson(forecastUrl, { signal }),
+    fetchJson(archiveUrl, { signal, ttl: 60 * 60 * 1000 }).catch((error) => { if (error.name === "AbortError") throw error; return null; }),
+    fetchAirQuality(place, signal).catch((error) => { if (error.name === "AbortError") throw error; return null; }),
+    fetchOfficialAlerts(place, signal).catch((error) => { if (error.name === "AbortError") throw error; return { supported: isNwsSupported(place), features: [], unavailable: true }; }),
   ]);
-  return { forecast, archive, airQuality };
+  return { forecast, archive, airQuality, officialAlerts };
 }
 
-async function fetchLatestForecast(place) {
+async function fetchLatestForecast(place, signal) {
   const url = buildUrl(API.forecast, {
     latitude: place.latitude,
     longitude: place.longitude,
@@ -227,7 +269,7 @@ async function fetchLatestForecast(place) {
     hourly: ["temperature_2m", "relative_humidity_2m", "precipitation_probability", "precipitation", "weather_code", "wind_speed_10m", "wind_direction_10m", "surface_pressure", "cloud_cover", "visibility", "uv_index"],
     daily: ["weather_code", "temperature_2m_max", "temperature_2m_min", "precipitation_sum", "precipitation_probability_max", "wind_speed_10m_max", "sunrise", "sunset", "daylight_duration", "uv_index_max"],
   });
-  return fetchJson(url);
+  return fetchJson(url, { signal });
 }
 async function fetchHistoryRange(place, startDate, endDate) {
   const url = buildUrl(API.archive, {
@@ -377,7 +419,7 @@ function renderAdvice(forecast) {
   elements.adviceMeta.replaceChildren();
   const rainTime = nextRainWindow(forecast);
   const meta = [[tr("강수확률", "Rain"), rainChance + "%"], ["UV", uv.toFixed(1)], [tr("바람", "Wind"), displayWind(wind)]];
-  if (rainTime) meta.unshift([tr("비 예상", "Rain near"), new Intl.DateTimeFormat(state.language === "en" ? "en-US" : "ko-KR", { hour: "2-digit", minute: "2-digit" }).format(new Date(rainTime))]);
+  if (rainTime) meta.unshift([tr("비 예상", "Rain near"), weatherFormatter({ hour: "2-digit", minute: "2-digit" }).format(weatherDate(rainTime))]);
   if (!raining) meta.push([tr("레이더", "Radar"), tr("현재 비 없음", "No rain now")]);
   meta.forEach(([label, value]) => {
     const chip = document.createElement("span");
@@ -400,7 +442,7 @@ function renderAdviceFallback() {
 
 function forecastWindow(forecast, hours = 24) {
   const hourly = forecast.hourly;
-  const start = Math.max(0, hourly.time.findIndex((time) => new Date(time).getTime() >= Date.now()));
+  const start = Math.max(0, hourly.time.findIndex((time) => weatherDate(time).getTime() >= Date.now()));
   return { hourly, start, end: Math.min(hourly.time.length, start + hours) };
 }
 
@@ -462,7 +504,7 @@ function renderPrecipTimeline(forecast) {
     bar.className = "precip-bar";
     bar.style.height = Math.max(4, chance) + "%";
     value.textContent = chance ? chance + "%" : "";
-    label.textContent = index % 3 === start % 3 ? new Intl.DateTimeFormat(state.language === "en" ? "en-US" : "ko-KR", { hour: "2-digit" }).format(new Date(hourly.time[index])) : "";
+    label.textContent = index % 3 === start % 3 ? weatherFormatter({ hour: "2-digit" }).format(weatherDate(hourly.time[index])) : "";
     track.append(bar);
     cell.append(value, track, label);
     elements.precipTimeline.append(cell);
@@ -520,17 +562,17 @@ function moonPhaseInfo(date = new Date()) {
 }
 
 function renderAstronomy(forecast) {
-  const sunrise = new Date(forecast.daily.sunrise[0]);
-  const sunset = new Date(forecast.daily.sunset[0]);
+  const sunrise = weatherDate(forecast.daily.sunrise[0]);
+  const sunset = weatherDate(forecast.daily.sunset[0]);
   const now = new Date();
   elements.moonPhase.textContent = moonPhaseInfo(now);
-  if (now < sunrise) elements.sunProgress.textContent = tr("일출 전 · ", "Before sunrise · ") + new Intl.DateTimeFormat(state.language === "en" ? "en-US" : "ko-KR", { hour: "2-digit", minute: "2-digit" }).format(sunrise);
+  if (now < sunrise) elements.sunProgress.textContent = tr("일출 전 · ", "Before sunrise · ") + weatherFormatter({ hour: "2-digit", minute: "2-digit" }).format(sunrise);
   else if (now > sunset) elements.sunProgress.textContent = tr("일몰 후 · 내일 다시", "After sunset · returns tomorrow");
-  else elements.sunProgress.textContent = Math.round(((now - sunrise) / (sunset - sunrise)) * 100) + "% · " + tr("일몰 ", "sunset ") + new Intl.DateTimeFormat(state.language === "en" ? "en-US" : "ko-KR", { hour: "2-digit", minute: "2-digit" }).format(sunset);
+  else elements.sunProgress.textContent = Math.round(((now - sunrise) / (sunset - sunrise)) * 100) + "% · " + tr("일몰 ", "sunset ") + weatherFormatter({ hour: "2-digit", minute: "2-digit" }).format(sunset);
 }
 
 function renderDataTrust(weather, dataMeta = state.dataMeta) {
-  const currentTime = new Date(weather.forecast.current.time).getTime();
+  const currentTime = weatherDate(weather.forecast.current.time).getTime();
   const ageMinutes = Math.max(0, Math.round((Date.now() - currentTime) / 60000));
   const cached = dataMeta?.kind === "cache";
   const available = [true, Boolean(weather.airQuality?.current), Boolean(weather.archive?.daily)].filter(Boolean).length;
@@ -543,8 +585,38 @@ function renderDataTrust(weather, dataMeta = state.dataMeta) {
     [tr("예보 제공", "Forecast available"), "ok"],
     [weather.airQuality?.current ? tr("대기질 제공", "Air quality available") : tr("대기질 누락", "Air quality missing"), weather.airQuality?.current ? "ok" : "warn"],
     [weather.archive?.daily ? tr("과거 자료 제공", "History available") : tr("과거 자료 누락", "History missing"), weather.archive?.daily ? "ok" : "warn"],
+    [weather.officialAlerts?.supported ? (weather.officialAlerts.unavailable ? tr("NWS 특보 연결 지연", "NWS alerts delayed") : tr("NWS 공식 특보 확인", "NWS alerts checked")) : tr("공식 특보 미연동 지역", "Official alerts not integrated here"), weather.officialAlerts?.supported && !weather.officialAlerts.unavailable ? "ok" : "warn"],
   ];
   details.forEach(([text, tone]) => { const chip = document.createElement("span"); chip.className = "trust-chip " + tone; chip.textContent = text; elements.dataTrustDetails.append(chip); });
+}
+
+function renderOfficialAlerts(alerts) {
+  const features = alerts?.features || [];
+  elements.officialAlertPanel.hidden = features.length === 0;
+  elements.officialAlertList.replaceChildren();
+  if (!features.length) return;
+  elements.officialAlertTitle.textContent = tr(features.length + "건의 활성 특보", features.length + " active alert" + (features.length === 1 ? "" : "s"));
+  features.slice(0, 3).forEach((feature) => {
+    const properties = feature.properties || {};
+    const item = document.createElement("article");
+    item.className = "official-alert-item";
+    const heading = document.createElement("strong");
+    const detail = document.createElement("p");
+    const meta = document.createElement("span");
+    heading.textContent = properties.event || properties.headline || tr("기상 특보", "Weather alert");
+    detail.textContent = properties.headline || properties.description?.split("\n")[0] || tr("상세 내용은 공식 발표를 확인하세요.", "Check the official bulletin for details.");
+    meta.textContent = [properties.severity, properties.expires ? tr("종료 ", "Expires ") + formatTime(properties.expires) : ""].filter(Boolean).join(" · ");
+    item.append(heading, detail, meta);
+    elements.officialAlertList.append(item);
+  });
+  elements.officialAlertNote.replaceChildren();
+  elements.officialAlertNote.append(tr("미국 NWS 공식 특보 · ", "Official U.S. NWS alerts · "));
+  const link = document.createElement("a");
+  link.href = "https://www.weather.gov/";
+  link.target = "_blank";
+  link.rel = "noreferrer";
+  link.textContent = tr("원문 확인", "View source");
+  elements.officialAlertNote.append(link);
 }
 
 function currentAlertRules() {
@@ -562,10 +634,40 @@ function renderAlertSettings() {
   elements.alertAir.checked = Boolean(rules.air);
 }
 
+function updateBackgroundAlertStatus() {
+  if (!elements.backgroundAlertStatus) return;
+  if (!("serviceWorker" in navigator)) {
+    elements.backgroundAlertStatus.textContent = tr("이 브라우저에서는 앱이 열려 있을 때만 조건을 확인합니다.", "This browser checks conditions only while the app is open.");
+  } else if (typeof ServiceWorkerRegistration !== "undefined" && "periodicSync" in ServiceWorkerRegistration.prototype) {
+    elements.backgroundAlertStatus.textContent = tr("설치형 앱에서는 브라우저가 허용할 때 백그라운드 확인을 시도합니다. 주기는 보장되지 않습니다.", "The installed app attempts background checks when the browser allows it; timing is not guaranteed.");
+  } else {
+    elements.backgroundAlertStatus.textContent = tr("앱이 열려 있고 날씨가 갱신될 때 조건을 확인합니다. 지속 알림은 서버형 푸시가 필요합니다.", "Conditions are checked while the app is open. Persistent alerts require server-based push.");
+  }
+}
+
+async function syncBackgroundAlertConfig() {
+  if (!("serviceWorker" in navigator) || !state.selectedPlace) return;
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const worker = registration.active || registration.waiting;
+    worker?.postMessage({
+      type: "SAVE_ALERT_CONFIG",
+      config: {
+        place: serializePlace(state.selectedPlace),
+        rules: currentAlertRules(),
+        language: state.language,
+      },
+    });
+    if ("periodicSync" in registration) await registration.periodicSync.register("weather-alert-check", { minInterval: 60 * 60 * 1000 });
+  } catch (error) { /* Background checks are best effort and browser-controlled. */ }
+}
+
 function saveAlertRules() {
   if (!state.selectedPlace) return;
   state.alertRules[state.selectedPlace.id] = { rain: elements.alertRain.checked, snow: elements.alertSnow.checked, heat: elements.alertHeat.checked, air: elements.alertAir.checked };
   writeStorage("weather-alert-rules", state.alertRules);
+  syncBackgroundAlertConfig();
+  updateBackgroundAlertStatus();
   showToast(tr("현재 위치의 알림 조건을 저장했습니다.", "Alert rules saved for this location."));
 }
 async function getRadarMetadata() {
@@ -672,25 +774,25 @@ function atmosphereGridPoints() {
   return points;
 }
 
-async function fetchAtmosphereWeather(points) {
+async function fetchAtmosphereWeather(points, signal) {
   const data = await fetchJson(buildUrl(API.forecast, {
     latitude: points.map((point) => point.latitude),
     longitude: points.map((point) => point.longitude),
     timezone: "auto",
     current: ["cloud_cover", "wind_speed_10m", "wind_direction_10m"],
     forecast_days: 1,
-  }));
+  }), { signal });
   return Array.isArray(data) ? data : [data];
 }
 
-async function fetchAtmosphereAir(points) {
+async function fetchAtmosphereAir(points, signal) {
   const data = await fetchJson(buildUrl(API.air, {
     latitude: points.map((point) => point.latitude),
     longitude: points.map((point) => point.longitude),
     timezone: "auto",
     current: ["pm2_5"],
     forecast_days: 1,
-  }));
+  }), { signal });
   return Array.isArray(data) ? data : [data];
 }
 
@@ -844,8 +946,10 @@ async function renderAtmosphereLayer(layer = state.weatherLayer) {
       return;
     }
 
+    atmosphereRequestController?.abort();
+    atmosphereRequestController = new AbortController();
     const points = atmosphereGridPoints();
-    const data = layer === "pm25" ? await fetchAtmosphereAir(points) : await fetchAtmosphereWeather(points);
+    const data = layer === "pm25" ? await fetchAtmosphereAir(points, atmosphereRequestController.signal) : await fetchAtmosphereWeather(points, atmosphereRequestController.signal);
     if (loadId !== atmosphereLoadId) return;
     if (layer === "cloud" || layer === "pm25") {
       renderAtmosphereRasterField(points, data, layer);
@@ -861,6 +965,7 @@ async function renderAtmosphereLayer(layer = state.weatherLayer) {
     }
     elements.atmosphereStatus.textContent = atmosphereTimeLabel(data[0]?.current?.time);
   } catch (error) {
+    if (error.name === "AbortError") return;
     elements.atmosphereStatus.textContent = tr("레이어 데이터를 불러오지 못했습니다. 다시 시도해 주세요.", "Layer data is unavailable. Please retry.");
   } finally {
     if (loadId === atmosphereLoadId) elements.layerRefreshButton.classList.remove("loading");
@@ -1152,7 +1257,9 @@ function renderPlace(place, weather, dataMeta = state.dataMeta || { kind: "live"
   renderInsights(weather.forecast);
   renderAstronomy(weather.forecast);
   renderDataTrust(weather, dataMeta);
+  renderOfficialAlerts(weather.officialAlerts);
   renderAlertSettings();
+  updateBackgroundAlertStatus();
   updateSky(weather.forecast.current);
   syncAtmosphereMap(place);
   rememberPlace(place);
@@ -1181,6 +1288,7 @@ function renderError(message) {
   renderDataState(elements.historyChart, message);
   elements.rainRadarSection.hidden = true;
   elements.hazardPanel.hidden = true;
+  elements.officialAlertPanel.hidden = true;
   renderDataState(elements.precipTimeline, tr("강수 타임라인을 불러오지 못했습니다.", "Precipitation timeline unavailable."), false);
   renderDataState(elements.activityGrid, tr("활동 적합도를 계산할 수 없습니다.", "Activity scores unavailable."), false);
   renderDataState(elements.dataTrustDetails, tr("데이터 연결을 확인하고 있습니다.", "Checking data connection."), false);
@@ -1189,18 +1297,22 @@ function renderError(message) {
 }
 
 async function loadPlace(place) {
-  if (state.loading) return;
+  const loadId = ++placeLoadId;
+  placeRequestController?.abort();
+  placeRequestController = new AbortController();
   state.selectedPlace = place;
   state.weather = null;
   startAutoRefresh();
   setLoading(true);
   elements.currentSummary.textContent = tr("상세 날씨 데이터를 불러오는 중입니다.", "Loading detailed weather data.");
   try {
-    const weather = await fetchWeather(place);
+    const weather = await fetchWeather(place, placeRequestController.signal);
+    if (loadId !== placeLoadId) return;
     state.lastRefreshAt = Date.now();
     renderPlace(place, weather, { kind: "live", fetchedAt: Date.now() });
     cacheWeather(place, weather);
   } catch (error) {
+    if (error.name === "AbortError" || loadId !== placeLoadId) return;
     const cached = loadCachedWeather(place);
     if (cached) {
       renderPlace(place, cached.weather, { kind: "cache", fetchedAt: cached.savedAt });
@@ -1211,7 +1323,7 @@ async function loadPlace(place) {
       renderError(error.message || "날씨 데이터를 불러오지 못했습니다.");
     }
   } finally {
-    setLoading(false);
+    if (loadId === placeLoadId) setLoading(false);
   }
 }
 
@@ -1254,24 +1366,37 @@ function startAutoRefresh() {
 async function refreshSelectedWeather(manual = false) {
   if (!state.selectedPlace || state.loading) return;
   const place = state.selectedPlace;
+  const refreshId = ++placeLoadId;
+  placeRequestController?.abort();
+  placeRequestController = new AbortController();
+  const signal = placeRequestController.signal;
   setLoading(true);
   elements.refreshButton.classList.add("refreshing");
   elements.refreshStatus.textContent = manual ? "새 날씨를 불러오는 중" : "자동 갱신 중";
   try {
     const weather = state.weather
-      ? { forecast: await fetchLatestForecast(place), archive: state.weather.archive, airQuality: await fetchAirQuality(place).catch(() => state.weather.airQuality || null) }
-      : await fetchWeather(place);
-    if (state.selectedPlace?.id !== place.id) return;
+      ? {
+          forecast: await fetchLatestForecast(place, signal),
+          archive: state.weather.archive,
+          airQuality: await fetchAirQuality(place, signal).catch((error) => { if (error.name === "AbortError") throw error; return state.weather.airQuality || null; }),
+          officialAlerts: await fetchOfficialAlerts(place, signal).catch((error) => { if (error.name === "AbortError") throw error; return state.weather.officialAlerts; }),
+        }
+      : await fetchWeather(place, signal);
+    if (state.selectedPlace?.id !== place.id || refreshId !== placeLoadId) return;
     state.lastRefreshAt = Date.now();
     renderPlace(place, weather, { kind: "live", fetchedAt: Date.now() });
     cacheWeather(place, weather);
     if (state.activeTab === "layers") renderAtmosphereLayer(state.weatherLayer);
   } catch (error) {
-    elements.refreshStatus.textContent = tr("갱신 실패 · 잠시 후 다시 시도", "Refresh failed · retrying later");
-    if (!state.weather) renderAdviceFallback();
+    if (error.name !== "AbortError") {
+      elements.refreshStatus.textContent = tr("갱신 실패 · 잠시 후 다시 시도", "Refresh failed · retrying later");
+      if (!state.weather) renderAdviceFallback();
+    }
   } finally {
-    elements.refreshButton.classList.remove("refreshing");
-    setLoading(false);
+    if (refreshId === placeLoadId) {
+      elements.refreshButton.classList.remove("refreshing");
+      setLoading(false);
+    }
   }
 }
 function readStorage(key, fallback) {
@@ -1291,6 +1416,7 @@ function serializePlace(place) {
     longitude: Number(place.longitude),
     timezone: place.timezone || "auto",
     elevation: place.elevation,
+    countryCode: place.country_code || place.countryCode || "",
   };
 }
 
@@ -1511,7 +1637,7 @@ function nextRainWindow(forecast) {
   const hourly = forecast.hourly;
   const now = Date.now();
   for (let index = 0; index < hourly.time.length; index += 1) {
-    const time = new Date(hourly.time[index]).getTime();
+    const time = weatherDate(hourly.time[index]).getTime();
     if (time < now || time > now + 12 * 60 * 60 * 1000) continue;
     if (rainCodes.has(Number(hourly.weather_code[index])) || Number(hourly.precipitation_probability[index]) >= 60 || Number(hourly.precipitation?.[index] || 0) >= 0.2) return hourly.time[index];
   }
@@ -1526,7 +1652,7 @@ function scheduleRainNotification(forecast) {
   const codes = hourly.weather_code.slice(start, end).map(Number);
   const messages = [];
   if (rules.rain && rainTime) {
-    const label = new Intl.DateTimeFormat(state.language === "en" ? "en-US" : "ko-KR", { hour: "2-digit", minute: "2-digit" }).format(new Date(rainTime));
+    const label = weatherFormatter({ hour: "2-digit", minute: "2-digit" }).format(weatherDate(rainTime));
     messages.push(tr(label + " 비 가능성", "Rain possible near " + label));
   }
   if (rules.snow && codes.some((code) => code >= 71 && code <= 86)) messages.push(tr("12시간 이내 눈·결빙 가능성", "Snow or ice possible within 12 hours"));
@@ -1569,6 +1695,7 @@ function applyLanguage() {
     "#tab-history .panel-header h2": ["과거 날씨 조회", "Weather history"], "#tab-compare .panel-header h2": ["도시 날씨 비교", "City comparison"],
     ".precip-panel .panel-header h2": ["앞으로 24시간 강수", "Next 24 hours precipitation"], ".activity-panel .panel-header h2": ["오늘의 활동 적합도", "Today activity scores"],
     ".trust-panel .panel-header h2": ["데이터 신뢰도", "Data confidence"], ".alert-config-panel .panel-header h2": ["위치별 날씨 알림", "Location weather alerts"],
+    ".official-alert-heading span": ["공식 기상 특보", "Official weather alerts"], ".model-disclosure strong": ["지도 해석 안내", "Map interpretation"], ".model-disclosure span": ["구름량과 미세먼지는 48개 모델 지점을 보간한 예측 화면입니다. 확대해도 관측 해상도가 높아지지는 않습니다.", "Cloud and PM2.5 fields interpolate 48 model points. Zooming does not increase the source resolution."],
   };
   Object.entries(labels).forEach(([selector, pair]) => setText(selector, pair[0], pair[1]));
   setSeries(".layer-button", ["비구름", "구름량", "바람", "미세먼지 PM2.5"], ["Rain radar", "Clouds", "Wind", "Fine dust PM2.5"]);
@@ -1636,7 +1763,7 @@ function initializeConnectionState() {
 }
 
 function registerPwa() {
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("service-worker.js?v=20260715-19").catch(() => {});
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("service-worker.js?v=20260719-20").catch(() => {});
   let installPrompt;
   addEventListener("beforeinstallprompt", (event) => { event.preventDefault(); installPrompt = event; elements.installButton.hidden = false; });
   elements.installButton.addEventListener("click", async () => {

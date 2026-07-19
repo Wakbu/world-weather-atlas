@@ -2,6 +2,10 @@
   "name": "world-weather-atlas",
   "private": true,
   "scripts": {
-    "test": "node tests/smoke.mjs"
+    "test": "node tests/smoke.mjs",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.1"
   }
 }

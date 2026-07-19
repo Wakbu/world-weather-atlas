@@ -4,11 +4,11 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#087f8c">
-    <link rel="manifest" href="manifest.webmanifest?v=20260715-19">
+    <link rel="manifest" href="manifest.webmanifest?v=20260719-20">
     <title>World Weather Atlas</title>
     <script>try{document.documentElement.dataset.theme=localStorage.getItem("weather-theme")||((matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light")}catch(e){}</script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
-    <link rel="stylesheet" href="styles.css?v=20260715-19">
+    <link rel="stylesheet" href="styles.css?v=20260719-20">
   </head>
   <body>
     <div id="offlineBanner" class="offline-banner" hidden>오프라인 상태입니다. 마지막으로 저장한 날씨를 표시합니다.</div>
@@ -74,6 +74,11 @@
         <section id="hazardPanel" class="hazard-panel" role="status" aria-live="polite" hidden>
           <div><span>예보 기반 위험 신호</span><strong id="hazardTitle">주의할 날씨가 있습니다</strong></div><div id="hazardList" class="hazard-list"></div>
         </section>
+        <section id="officialAlertPanel" class="official-alert-panel" aria-live="polite" hidden>
+          <div class="official-alert-heading"><span>공식 기상 특보</span><strong id="officialAlertTitle">특보 확인 중</strong></div>
+          <div id="officialAlertList" class="official-alert-list"></div>
+          <p id="officialAlertNote" class="official-alert-note"></p>
+        </section>
         <section class="hero-weather">
           <div class="current-main">
             <span id="weatherIcon" class="weather-icon" aria-hidden="true">--</span>
@@ -116,7 +121,7 @@
         </article>
         <section class="overview-data-grid service-meta-grid">
           <article class="panel trust-panel"><div class="panel-header"><h2>데이터 신뢰도</h2><span id="dataTrustLevel">확인 중</span></div><div id="dataTrustDetails" class="trust-details"></div></article>
-          <article class="panel alert-config-panel"><div class="panel-header"><h2>위치별 날씨 알림</h2><span id="alertPlaceName">현재 위치</span></div><div class="alert-options"><label><input id="alertRain" type="checkbox"> 비</label><label><input id="alertSnow" type="checkbox"> 눈</label><label><input id="alertHeat" type="checkbox"> 폭염</label><label><input id="alertAir" type="checkbox"> 미세먼지</label><button id="saveAlertSettings" type="button">알림 조건 저장</button></div><p class="panel-note">앱이 열려 있고 날씨가 갱신될 때 조건을 확인합니다.</p></article>
+          <article class="panel alert-config-panel"><div class="panel-header"><h2>위치별 날씨 알림</h2><span id="alertPlaceName">현재 위치</span></div><div class="alert-options"><label><input id="alertRain" type="checkbox"> 비</label><label><input id="alertSnow" type="checkbox"> 눈</label><label><input id="alertHeat" type="checkbox"> 폭염</label><label><input id="alertAir" type="checkbox"> 미세먼지</label><button id="saveAlertSettings" type="button">알림 조건 저장</button></div><p id="backgroundAlertStatus" class="panel-note">앱이 열려 있고 날씨가 갱신될 때 조건을 확인합니다.</p></article>
         </section>
       </section>
 
@@ -154,6 +159,7 @@
             <div id="atmosphereMap" class="atmosphere-map" aria-label="비구름, 구름량, 바람, 미세먼지 지도"></div>
             <div id="atmosphereLegend" class="atmosphere-legend" aria-live="polite"></div>
           </div>
+          <div class="model-disclosure"><strong>지도 해석 안내</strong><span>구름량과 미세먼지는 48개 모델 지점을 보간한 예측 화면입니다. 확대해도 관측 해상도가 높아지지는 않습니다.</span></div>
           <p class="data-credit atmosphere-credit">레이더: RainViewer · 날씨/대기질: Open-Meteo · 지도: OpenStreetMap</p>
         </article>
       </section>
@@ -196,6 +202,6 @@
     <template id="dayTemplate"><div class="day-row"><div class="day-label"><strong class="day-date"></strong><span class="day-desc"></span></div><div class="day-values"><span class="temp-range"></span><span class="rain"></span><span class="sun"></span></div></div></template>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 
-    <script src="script.js?v=20260715-19"></script>
+    <script src="script.js?v=20260719-20"></script>
   </body>
 </html>

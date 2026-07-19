@@ -6,11 +6,11 @@ const script = readFileSync("script.js", "utf8");
 const css = readFileSync("styles.css", "utf8");
 const worker = readFileSync("service-worker.js", "utf8");
 
-for (const id of ["hazardPanel", "precipTimeline", "activityGrid", "moonPhase", "dataTrustDetails", "alertRain", "atmosphereMap"]) {
+for (const id of ["hazardPanel", "precipTimeline", "activityGrid", "moonPhase", "dataTrustDetails", "alertRain", "atmosphereMap", "officialAlertPanel", "backgroundAlertStatus"]) {
   assert.match(html, new RegExp(`id=["']${id}["']`), `missing #${id}`);
 }
 
-for (const fn of ["renderHazards", "renderPrecipTimeline", "renderActivities", "renderAstronomy", "renderDataTrust", "saveAlertRules"]) {
+for (const fn of ["renderHazards", "renderPrecipTimeline", "renderActivities", "renderAstronomy", "renderDataTrust", "renderOfficialAlerts", "saveAlertRules", "updateBackgroundAlertStatus"]) {
   assert.match(script, new RegExp(`function ${fn}\\(`), `missing ${fn}`);
 }
 
